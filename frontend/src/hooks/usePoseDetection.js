@@ -18,6 +18,7 @@ export default function usePoseDetection({
 	hold = 4,
 	onResult,
 	autoSkip = 0, // seconds to wait before auto-advancing if user doesn't match (0 = disabled)
+	disableAdvancement = false, // when true, don't auto-advance steps (external controller manages steps)
 } = {}) {
 	const poseRef = useRef(null);
 	const cameraRef = useRef(null);
@@ -215,7 +216,7 @@ export default function usePoseDetection({
 					// If autoSkip timing is enabled, prefer time-based advancement instead of
 					// requiring the user to hit accuracy thresholds. Otherwise, allow
 					// sim/hold-based advancement as before.
-					if ((!autoSkip || autoSkip <= 0) && framesAboveRef.current >= hold) {
+					if (!disableAdvancement && (!autoSkip || autoSkip <= 0) && framesAboveRef.current >= hold) {
 				framesAboveRef.current = 0;
 				// advance step (cap at last index). If we're at the final step, stay there.
 						if (referenceSequence && referenceSequence.length > 0) {
@@ -230,7 +231,7 @@ export default function usePoseDetection({
 
 					// auto-skip: if configured and the user hasn't matched within the timeout, advance
 					try {
-						if (autoSkip && typeof autoSkip === 'number' && autoSkip > 0) {
+						if (!disableAdvancement && autoSkip && typeof autoSkip === 'number' && autoSkip > 0) {
 							const now = Date.now();
 							const elapsed = now - (stepStartRef.current || 0);
 							if (elapsed >= Math.round(autoSkip * 1000)) {

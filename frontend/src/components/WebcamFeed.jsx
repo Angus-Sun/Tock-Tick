@@ -3,11 +3,12 @@ import usePoseDetection from '../hooks/usePoseDetection';
 import ScoreDisplay from './ScoreDisplay';
 import { perJointSimilarity, JOINT_NAMES, similarityToColor, perJointAngleSimilarity } from '../utils/poseUtil';
 
-export default function WebcamFeed({ referenceSequence, autoSkipDefault, onStream, autoStart = false, withAudio = false }) {
+export default function WebcamFeed({ referenceSequence, stepTimes = null, autoSkipDefault, onStream, autoStart = false, withAudio = false, onStartRecording = null, onStopRecording = null, isRecording = false }) {
 	const videoRef = useRef(null);
 	const canvasRef = useRef(null);
 		const [status, setStatus] = useState('idle'); // idle | requesting | ready | error
 		const [errorMsg, setErrorMsg] = useState('');
+		const [countdown, setCountdown] = useState(null);
 		const [showReference, setShowReference] = useState(true);
 		const [showLabels, setShowLabels] = useState(true);
 		const [showLive, setShowLive] = useState(true);
@@ -21,13 +22,22 @@ export default function WebcamFeed({ referenceSequence, autoSkipDefault, onStrea
 			setAutoSkip(autoSkipDefault);
 		}
 	}, [autoSkipDefault]);
-	const { currentScore, currentStep, perStepScores, isRunning, start, stop, reset, nextStep, prevStep } = usePoseDetection({
+	const disableAdvancement = Array.isArray(stepTimes) && stepTimes.length > 0;
+	const { currentScore, currentStep, perStepScores, isRunning, start, stop, reset, nextStep, prevStep, goToStep } = usePoseDetection({
 		videoRef,
 		referenceSequence,
 		threshold: 0.75,
 		hold: 4,
 		autoSkip,
+		disableAdvancement,
 	});
+
+	// auto-stop recording when user reaches the final step
+	const autoStopRef = useRef(false);
+	const autoStopTimeoutRef = useRef(null);
+	// step sync timer (advance reference step according to stepTimes)
+	const stepTimerRef = useRef(null);
+	const stepStartTimestampRef = useRef(null);
 
 	// defensive length value for referenceSequence (avoid reading .length on null)
 	const referenceLen = Array.isArray(referenceSequence) ? referenceSequence.length : 0;
@@ -43,7 +53,95 @@ export default function WebcamFeed({ referenceSequence, autoSkipDefault, onStrea
 		return () => stop();
 	}, [stop]);
 
-	async function enableCameraAndStart() {
+	// when recording and the current step reaches the last reference, stop recording automatically
+	useEffect(() => {
+		if (!isRecording) {
+			// reset auto-stop state when not recording
+			autoStopRef.current = false;
+			if (autoStopTimeoutRef.current) {
+				clearTimeout(autoStopTimeoutRef.current);
+				autoStopTimeoutRef.current = null;
+			}
+			return;
+		}
+
+		if (isRecording && Array.isArray(referenceSequence) && referenceSequence.length > 0) {
+			const lastIndex = referenceSequence.length - 1;
+			if (currentStep >= lastIndex && !autoStopRef.current) {
+				// give a small grace period to capture the final frames
+				autoStopRef.current = true;
+				autoStopTimeoutRef.current = setTimeout(() => {
+					if (typeof onStopRecording === 'function') {
+						try { onStopRecording(); } catch (e) { console.error('auto onStopRecording failed', e); }
+					}
+					autoStopTimeoutRef.current = null;
+				}, 500);
+			}
+		}
+		// cleanup if referenceSequence changes or component unmounts
+		return () => {
+			if (autoStopTimeoutRef.current) {
+				clearTimeout(autoStopTimeoutRef.current);
+				autoStopTimeoutRef.current = null;
+			}
+		};
+	}, [currentStep, referenceSequence, isRecording, onStopRecording]);
+
+
+	// Sync reference progression to provided stepTimes while recording or when mimic started
+	useEffect(() => {
+		// clear any existing timer when stepTimes changes
+		if (stepTimerRef.current) {
+			clearInterval(stepTimerRef.current);
+			stepTimerRef.current = null;
+			stepStartTimestampRef.current = null;
+		}
+
+		if (!Array.isArray(stepTimes) || stepTimes.length === 0) return;
+
+		// Start syncing when recording starts (or when camera autoStart triggers and hook is running)
+		const startSync = () => {
+			if (stepTimerRef.current) return;
+			stepStartTimestampRef.current = Date.now();
+			stepTimerRef.current = setInterval(() => {
+				const elapsed = (Date.now() - stepStartTimestampRef.current) / 1000;
+				// find latest step index where stepTimes[idx] <= elapsed
+				let idx = 0;
+				for (let i = 0; i < stepTimes.length; i++) {
+					if ((stepTimes[i] || 0) <= elapsed) idx = i;
+					else break;
+				}
+				if (typeof goToStep === 'function') {
+					goToStep(idx);
+				}
+				// if reached final step, stop the timer (autoStop handles stopping recording)
+				if (idx >= stepTimes.length - 1) {
+					// clear interval but leave auto-stop to stop recording
+					if (stepTimerRef.current) {
+						clearInterval(stepTimerRef.current);
+						stepTimerRef.current = null;
+					}
+				}
+			}, 100);
+		};
+
+		// start sync when recording starts or if pose detection is already running
+		if (isRecording) startSync();
+
+		// also start if pose detection starts (isRunning becomes true) and autoStart was requested
+		// watch isRunning to start sync if recording started later
+		if (!isRecording && isRunning) startSync();
+
+		return () => {
+			if (stepTimerRef.current) {
+				clearInterval(stepTimerRef.current);
+				stepTimerRef.current = null;
+			}
+			stepStartTimestampRef.current = null;
+		};
+	}, [stepTimes, isRecording, isRunning, goToStep]);
+
+	async function performEnable() {
 		if (!videoRef.current) return;
 		setStatus('requesting');
 		setErrorMsg('');
@@ -71,9 +169,26 @@ export default function WebcamFeed({ referenceSequence, autoSkipDefault, onStrea
 		}
 	}
 
-	// if autoStart is requested, enable camera on mount
+	async function runCountdownThen(action) {
+		// avoid double-running
+		if (countdown) return;
+		setCountdown(3);
+		for (let i = 3; i > 0; i--) {
+			setCountdown(i);
+			// eslint-disable-next-line no-await-in-loop
+			await new Promise((r) => setTimeout(r, 1000));
+		}
+		setCountdown(null);
+		try {
+			await action();
+		} catch (e) {
+			console.error('Action after countdown failed', e);
+		}
+	}
+
+	// if autoStart is requested, enable camera on mount (with countdown)
 	useEffect(() => {
-		if (autoStart) enableCameraAndStart();
+		if (autoStart) runCountdownThen(performEnable);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [autoStart]);
 
@@ -216,18 +331,43 @@ export default function WebcamFeed({ referenceSequence, autoSkipDefault, onStrea
 				<div style={{ position: 'relative', width: 640, height: 480, background: '#000' }}>
 					<video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
 					<canvas ref={canvasRef} style={{ position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }} />
+					{countdown && (
+						<div style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+							<div style={{ fontSize: 96, fontWeight: 800, color: 'white', textShadow: '0 2px 6px rgba(0,0,0,0.8)' }}>{countdown}</div>
+						</div>
+					)}
 					{/* grade badge overlay removed (rendered beside Reset button instead) */}
 				</div>
 
 					<div style={{ marginTop: 8 }}>
-						{status !== 'ready' && (
-							<button onClick={enableCameraAndStart}>Enable camera & start</button>
+						{/* Unified enable + record button. If not recording, show a single button that will run the countdown, enable camera if needed, then call parent start-recording handler. */}
+						{!isRecording ? (
+							<button
+								onClick={async () => {
+								if (referenceLen === 0) return; // disabled guard
+								await runCountdownThen(async () => {
+									if (status !== 'ready') {
+										await performEnable();
+									}
+									if (typeof onStartRecording === 'function') {
+										try { await onStartRecording(); } catch (e) { console.error('onStartRecording failed', e); }
+									}
+								});
+								}
+							}
+								disabled={!!countdown || referenceLen === 0}
+							>
+								{status !== 'ready' ? 'Enable & Start Recording' : 'Start Recording'}
+							</button>
+						) : (
+							<button style={{ marginLeft: 8 }} onClick={() => { if (typeof onStopRecording === 'function') onStopRecording(); }}>Stop Recording</button>
 						)}
-						{status === 'ready' && (
-							<button onClick={() => (isRunning ? stop() : start())}>{isRunning ? 'Stop' : 'Restart Pose'}</button>
+
+						<button onClick={() => runCountdownThen(async () => { reset(); })} style={{ marginLeft: 8 }} disabled={!!countdown || referenceLen === 0}>Reset</button>
+
+						{referenceLen === 0 && (
+							<div style={{ marginTop: 8, color: '#bbb', fontSize: 13 }}>Generate steps on the challenge page to enable camera controls.</div>
 						)}
-						<button onClick={reset} style={{ marginLeft: 8 }}>Reset</button>
-						{/* grade badge removed */}
 					</div>
 
 					<div style={{ marginTop: 8 }}>

@@ -40,7 +40,7 @@ export default function ChallengePage() {
 	const [uploading, setUploading] = useState(false);
 	const [recording, setRecording] = useState(false);
 	const [recordedBlob, setRecordedBlob] = useState(null);
-	const [countdown, setCountdown] = useState(null);
+	// page-level countdown removed: webcam now shows a unified 3s countdown
 		const [generating, setGenerating] = useState(false);
 		const [generateError, setGenerateError] = useState(null);
 		const [generatedReference, setGeneratedReference] = useState(null);
@@ -97,13 +97,7 @@ export default function ChallengePage() {
 		// reset any previous recording
 		setRecordedBlob(null);
 
-		// countdown
-		for (let i = 3; i > 0; i--) {
-			setCountdown(i);
-			// eslint-disable-next-line no-await-in-loop
-			await new Promise((resolve) => setTimeout(resolve, 1000));
-		}
-		setCountdown(null);
+		// directly begin recording (WebcamFeed handles the shared visual countdown)
 		await beginRecording();
 	};
 
@@ -271,25 +265,18 @@ export default function ChallengePage() {
 											{/* WebcamFeed handles camera access and draws joint tracker overlay. We pass onStream so we can record the same MediaStream. */}
 											<WebcamFeed
 												referenceSequence={generatedReference || null}
+												stepTimes={generatedStepTimes || null}
 												autoStart={mimicStarted}
 												autoSkipDefault={suggestedAutoSkip}
 												withAudio={true}
 												onStream={(s) => { streamRef.current = s; }}
+												onStartRecording={startRecordingProcess}
+												onStopRecording={stopRecording}
+												isRecording={recording}
 											/>
-								{countdown && (
-									<div className="countdown-overlay">{countdown}</div>
-								)}
 							</div>
 
-					{!recording ? (
-						<button className="btn" onClick={startRecordingProcess}>
-							🎥 Start Recording
-						</button>
-					) : (
-						<button className="btn btn-stop" onClick={stopRecording}>
-							⏹ Stop Recording
-						</button>
-					)}
+					{/* Recording controls moved into WebcamFeed */}
 
 					{/* Start mimic dance to generated reference */}
 					{generatedReference && generatedReference.length > 0 && (
