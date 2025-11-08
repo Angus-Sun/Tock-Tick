@@ -1,82 +1,139 @@
-/* Styles for upload page */
-.upload-container{
-	max-width: 900px;
-	margin: 80px auto 60px; /* account for fixed navbar */
-	padding: 20px;
+.upload-container {
+  text-align: center;
+  padding: 40px;
 }
 
-.upload-container h1{ margin-bottom:4px }
-.upload-subtitle{ color:#2d4e00; margin-bottom:18px; font-size:1.05rem }
-
-/* Make header same size/color as home page hero logo */
-.upload-container h1{
-	color: #2d4e00; /* header color */
-	font-size: 3.2rem; /* same as .hero-logo on home page */
-	line-height: 1.05;
-	margin: 0 0 8px;
+h1 {
+  font-size: 2.5rem;
+  font-weight: bold;
+  color: #333;
 }
 
-/* Paragraphs and general text follow home page styles */
-.upload-container,
-.upload-container p,
-.upload-form label,
-.drop-sub,
+.upload-subtitle {
+  font-size: 1.2rem;
+  color: #555;
+  margin-bottom: 20px;
+}
+
+.upload-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.upload-form input[type="text"] {
+  width: 90%;
+  max-width: 700px;
+  padding: 12px;
+  margin-bottom: 15px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.file-input-wrapper {
+  position: relative;
+  width: 90%;
+  max-width: 700px;
+  margin-bottom: 20px;
+  border: 2px dashed #ccc;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #fafafa;
+  padding: 40px 20px;
+  gap: 20px;
+}
+
+#video-upload {
+  display: none;
+}
+
+.file-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  text-align: center;
+  width: 100%;
+  cursor: pointer;
+  padding: 20px;
+}
+
+.file-label-text {
+  margin-top: 5px;
+}
+
+.file-label-text strong {
+  font-size: 1.1rem;
+  color: #333;
+  font-weight: 600;
+}
+
+.file-icon {
+  width: 50px;
+  height: 50px;
+  margin-bottom: 15px;
+}
+
 .file-name {
-	color: #10210a; /* same general text color as home hero */
-	font-size: 1.05rem;
+  margin-top: 5px;
+  font-size: 0.95rem;
+  color: #666;
 }
 
-.upload-form{
-	background: #ffffff;
-	border-radius: 10px;
-	padding: 18px;
-	box-shadow: 0 6px 18px rgba(2,6,23,0.06);
+.upload-button-inside {
+  padding: 12px 40px;
+  background-color: #4361ee;
+  color: white;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-top: 10px;
 }
 
-.upload-form input[type="text"]{
-	width: 480px; /* smaller fixed width for the title box */
-	max-width: 100%;
-	display: block;
-	margin: 0 auto 12px; /* center the title box */
-	padding:12px 14px;
-	border-radius:6px;
-	border:1px solid #ddd;
-	font-family: inherit;
-	font-size: 1.05rem; /* slightly larger for readability */
+.upload-button-inside:hover:not(:disabled) {
+  background-color: #3651d4;
 }
 
-.dropzone{
-	border: 2px dashed rgba(45,78,0,0.25);
-	border-radius:8px;
-	padding: 24px;
-	text-align:center;
-	background: #fbfdf7;
-	transition: border-color 120ms ease, background-color 120ms ease;
-	position: relative;
+.upload-button-inside:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
-.dropzone.active{ border-color: #2d4e00; background: #f1f9ec }
-.hidden-input{ display:none }
-.drop-label{ cursor:pointer; color:#274300 }
-.drop-title{ font-weight:700; font-size:1.05rem }
-.drop-sub{ margin-top:6px; color:#4b5b36 }
-.file-name{ margin-top:10px; color:#2d4e00; font-weight:600 }
 
-/* Primary button style mirrors NavBar logout-btn (.logout-btn) */
-.btn.primary{
-	margin-top:14px;
-	background: #9bc570;
-	border: 1px solid #7aa44a;
-	color: #072000;
-	padding:10px 16px;
-	border-radius:6px;
-	cursor:pointer;
-	transition: background-color 150ms ease, color 150ms ease;
+button {
+  padding: 15px 30px;
+  background-color: #4CAF50;
+  color: white;
+  font-size: 1rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
 }
-.btn.primary:hover{ background:#2d4e00; color:#fff }
 
-/* Disabled state */
-.btn.primary:disabled{ opacity:0.6; cursor:not-allowed }
+button:disabled {
+  background-color: #ccc;
+}
 
-@media (max-width:600px){
-	.upload-container{ margin: 68px 12px 40px }
+.success-video {
+  margin-top: 20px;
+}
+
+.success-video video {
+  width: 80%;
+  max-width: 600px;
+  border-radius: 8px;
+}
+
+.success-video p {
+  font-size: 1.5rem;
+  color: #4CAF50;
+  margin-bottom: 10px;
 }

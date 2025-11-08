@@ -15,33 +15,34 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
 
   const uploadAvatar = async (file) => {
-    if (!file || !user) return;
-    setUploading(true);
-    const filePath = `avatars/${user.id}_${Date.now()}`;
+  if (!file || !user) return;
+  setUploading(true);
+  const ext = file.name.includes('.') ? file.name.split('.').pop() : 'png';
+  const filePath = `${user.id}/${Date.now()}.${ext}`;
 
-    const { data, error: uploadErr } = await supabase.storage
-      .from('avatars')
-      .upload(filePath, file, { cacheControl: '3600', upsert: true });
+  const { data: uploadData, error: uploadErr } = await supabase.storage
+    .from('avatars')
+    .upload(filePath, file, { cacheControl: '3600', upsert: true });
 
-    if (uploadErr) { alert(uploadErr.message); setUploading(false); return; }
+  if (uploadErr) { alert(`Upload failed: ${uploadErr.message}`); setUploading(false); return; }
 
-    const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(data.path);
+  const { data: publicData } = supabase.storage.from('avatars').getPublicUrl(filePath);
+  const publicUrl = publicData?.publicUrl;
 
-    // upsert profile (id must equal auth.uid())
-    const { data: profileData, error: dbErr } = await supabase.from('profiles').upsert([
-      { id: user.id, username, avatar_url: urlData.publicUrl, updated_at: new Date().toISOString() }
-    ], { onConflict: 'id' }).select().single();
+  // upsert profile (id must equal auth.uid())
+  const { data: profileData, error: dbErr } = await supabase.from('profiles').upsert([
+    { id: user.id, username, avatar_url: publicUrl, updated_at: new Date().toISOString() }
+  ], { onConflict: 'id' }).select().single();
 
-    if (dbErr) alert(dbErr.message);
-    else {
-      alert('Profile updated');
-      // Update local profile state to reflect the change
-      setProfile(profileData);
-      // Refresh the page to update navbar
-      window.location.reload();
-    }
-    setUploading(false);
-  };
+  if (dbErr) alert(dbErr.message);
+  else {
+    alert('Profile updated');
+    setProfile(profileData);  // Update profile state locally
+    window.location.reload();  // Refresh to apply changes
+  }
+  setUploading(false);
+};
+
 
   const saveUsername = async () => {
     if (!user) {
