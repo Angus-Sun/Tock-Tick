@@ -1,35 +1,72 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
+import { supabase } from "./utils/supabaseClient";
+import "./App.css";
 
-function App() {
-  const [count, setCount] = useState(0)
+import UploadPage from "./pages/UploadPage";
+import Home from "./pages/Home";
+import ChallengePage from "./pages/ChallengePage";
+import Auth from "./pages/Auth"; // your login/signup page
+import ProtectedRoute from "./components/ProtectedRoute"; // now implemented
+import ProfilePage from "./pages/Profile";
+import { UserProvider, useUser } from './hooks/useUser.jsx';
 
+export default function App() {
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    <UserProvider>
+      <BrowserRouter>
+        <div className="app">
+          <NavBar />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route
+              path="/upload"
+              element={
+                <ProtectedRoute>
+                  <UploadPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/challenge/:id" element={<ChallengePage />} />
+            <Route path="/login" element={<Auth />} />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </div>
+      </BrowserRouter>
+    </UserProvider>
+  );
 }
 
-export default App
+function NavBar() {
+  const { user, profile, refreshProfile } = useUser();
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    refreshProfile();
+  };
+  return (
+    <nav className="navbar">
+      <div className="nav-container">
+        <h1 className="logo">TokTik</h1>
+        <div className="nav-links">
+          <Link to="/">Home</Link>
+          <Link to="/upload">Upload</Link>
+          <Link to="/profile">Profile</Link>
+          {user ? (
+            <>
+              <span className="user-info">👤 {profile?.username || user.email || 'User'}</span>
+              <button onClick={handleLogout} className="logout-btn">Logout</button>
+            </>
+          ) : (
+            <Link to="/login">Login</Link>
+          )}
+        </div>
+      </div>
+    </nav>
+  );
+}
