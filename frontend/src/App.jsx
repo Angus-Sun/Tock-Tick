@@ -1,6 +1,6 @@
-import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
-import { supabase } from "./utils/supabaseClient";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "./App.css";
+import NavBar from "./components/NavBar";
 
 import UploadPage from "./pages/UploadPage";
 import Home from "./pages/Home";
@@ -40,33 +40,5 @@ export default function App() {
         </div>
       </BrowserRouter>
     </UserProvider>
-  );
-}
-
-function NavBar() {
-  const { user, profile, refreshProfile } = useUser();
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    refreshProfile();
-  };
-  return (
-    <nav className="navbar">
-      <div className="nav-container">
-        <h1 className="logo">TokTik</h1>
-        <div className="nav-links">
-          <Link to="/">Home</Link>
-          <Link to="/upload">Upload</Link>
-          <Link to="/profile">Profile</Link>
-          {user ? (
-            <>
-              <span className="user-info">👤 {profile?.username || user.email || 'User'}</span>
-              <button onClick={handleLogout} className="logout-btn">Logout</button>
-            </>
-          ) : (
-            <Link to="/login">Login</Link>
-          )}
-        </div>
-      </div>
-    </nav>
   );
 }

@@ -1,0 +1,130 @@
+.hero{
+  min-height: calc(100vh - 48px);
+  display:flex;
+  align-items:center;
+  /* refreshed hero style inspired by Matcha Magic concept */
+  background: linear-gradient(180deg, #cfd8ae 0%, #e7e7d2 100%);
+  color: #072000;
+  padding: 56px 20px;
+}
+
+.hero-inner{
+  text-align:left; /* uncentered content */
+  max-width: 960px;
+}
+
+.hero-logo{
+  font-size: 3.6rem;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #123600;
+  text-transform: uppercase;
+  text-shadow: 0 2px 6px rgba(18,54,0,0.08);
+}
+
+.hero-sub{
+  margin-top: 12px;
+  color: #124200;
+  font-size: 1.25rem;
+  font-weight: 600;
+  max-width: 820px;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.hero-ctas{
+  margin-top: 18px;
+  display:flex;
+  gap: 12px;
+  justify-content: flex-start; /* left-align CTAs */
+  align-items: center; /* ensure buttons align vertically */
+}
+
+.btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding: 10px 16px;
+  border-radius: 8px;
+  text-decoration:none;
+  font-weight:600;
+  min-width: 160px; /* ensure both CTAs match size */
+  height: 44px;
+  box-sizing: border-box;
+  border: 1px solid #7aa44a; /* unified border width/style/color */
+  border-radius: 9999px; /* pill shape to match concept */
+  box-shadow: 0 6px 18px rgba(43,72,12,0.08);
+}
+
+.btn.primary{
+  /* Match NavBar .logout-btn styling */
+  background: #9bc570; /* light green default */
+  color: #072000; /* dark text on light background */
+  padding: 10px 22px;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.btn.primary:hover{
+  background: #2d4e00; /* dark green on hover */
+  color: #ffffff;
+}
+
+.btn.secondary{
+  /* Inverse of primary: dark green default, light green on hover */
+  background: #2d4e00; /* dark green default */
+  color: #ffffff; /* white text on dark background */
+  padding: 10px 22px;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.btn.secondary:hover{
+  background: #9bc570; /* light green on hover */
+  color: #072000; /* dark text on light hover */
+}
+
+.content{
+  max-width: 1100px;
+  margin: 28px auto 80px;
+  padding: 0 16px;
+}
+
+.challenges h2{
+  margin-bottom: 12px;
+}
+
+.challenge-grid{
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 18px;
+}
+
+.challenge-card{
+  border-radius: 8px;
+  padding: 12px;
+  background: #e7e7d2; /* updated card background color */
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.challenge-card h3{ margin-top:0 }
+
+.challenge-card .meta{ font-size: 0.85rem; color:#666 }
+
+.placeholder{ height:120px; background:#f3f3f3; display:flex; align-items:center; justify-content:center; color:#999 }
+
+.btn.small{
+  display:block; /* center the button */
+  margin: 12px auto 0;
+  padding:8px 10px;
+  width: 120px; /* smaller fixed width */
+  text-align: center;
+  border-radius:6px;
+  background:#4f7c12;
+  color:#fff;
+}
+
+@media (max-width:600px){
+  .hero-logo{ font-size:2rem }
+  .hero-sub{ font-size:0.95rem }
+  .hero{ padding: 28px 12px }
+  .btn{ min-width: 120px; height: 40px }
+}

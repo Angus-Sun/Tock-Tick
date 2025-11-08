@@ -10,10 +10,31 @@ export default function UploadPage() {
   const [title, setTitle] = useState("");
   const [uploading, setUploading] = useState(false);
   const [successUrl, setSuccessUrl] = useState("");
+  const [dragActive, setDragActive] = useState(false);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     setFile(selectedFile);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    const droppedFiles = e.dataTransfer.files;
+    if (droppedFiles && droppedFiles[0]) setFile(droppedFiles[0]);
   };
 
   const handleUpload = async () => {
@@ -95,20 +116,27 @@ export default function UploadPage() {
           onChange={(e) => setTitle(e.target.value)}
         />
 
-        <div className="file-input-wrapper">
+        <div
+          className={`dropzone ${dragActive ? "active" : ""}`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           <input
             type="file"
             id="video-upload"
             accept="video/*"
             onChange={handleFileChange}
+            className="hidden-input"
           />
-          <label htmlFor="video-upload" className="file-label">
-            <strong>Choose a video</strong> or drag it here
+          <label htmlFor="video-upload" className="drop-label">
+            <div className="drop-title">Drag &amp; drop your video here</div>
+            <div className="drop-sub">or <strong>browse files</strong></div>
           </label>
           {file && <div className="file-name">✓ {file.name}</div>}
         </div>
 
-        <button disabled={uploading} onClick={handleUpload}>
+        <button className="btn primary" disabled={uploading} onClick={handleUpload}>
           {uploading ? "Uploading..." : "Upload Challenge"}
         </button>
       </div>

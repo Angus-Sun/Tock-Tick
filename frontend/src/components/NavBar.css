@@ -1,0 +1,81 @@
+.navbar{
+  background: #4f7c12;
+  color: #cfd8ae;
+  height: 48px;               /* Fixed thin height for the top bar */
+  padding: 0 20px;           /* horizontal padding only */
+  box-shadow: 0 2px 4px rgba(2,6,23,0.2);
+  width: 100%;               /* Ensure full width background */
+  position: fixed;           /* Fix to top of page */
+  top: 0;
+  left: 0;
+  z-index: 1000;             /* Keep navbar above other content */
+  display: flex;
+  align-items: center;       /* vertically center content */
+}
+.nav-container{
+  max-width: 1100px;        /* center inner content */
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;          /* small inner horizontal padding */
+}
+.logo{
+  color: #e7e7d2;
+  font-weight:700;
+  text-decoration:none;
+  font-size:1.2rem;
+}
+.nav-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;  /* Allow horizontal scroll if needed */
+}
+
+.nav-links a{
+  color: #e7e7d2;
+  margin-left: 14px;
+  text-decoration:none;
+  white-space: nowrap;  /* Prevent link text from wrapping */
+}
+
+.nav-links a:hover{ color:#fff }
+
+.user-info{ 
+  margin-left:12px; 
+  color: inherit; /* Match the navigation bar's text color */
+  white-space: nowrap;
+}
+
+.logout-btn{
+  margin-left:10px;
+  background: #9bc570; /* swapped: light green as default */
+  border: 1px solid #7aa44a; /* slightly darker border for default */
+  color: #072000; /* dark text for contrast on light background */
+  padding:4px 8px;
+  border-radius:6px;
+  cursor:pointer;
+  white-space: nowrap;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.logout-btn:hover{
+  background: #2d4e00; /* swapped: dark green on hover */
+  color: #ffffff; /* white text on dark hover */
+}
+
+@media (max-width:720px){
+  .nav-container{ 
+    padding: 0 8px;
+  }
+  .nav-links {
+    font-size: 0.9rem;
+    gap: 8px;
+    margin-right: 8px;  /* Prevent items from touching the edge */
+  }
+  .logo {
+    font-size: 1rem;  /* Slightly smaller logo on mobile */
+  }
+}

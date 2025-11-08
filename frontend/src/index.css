@@ -1,5 +1,8 @@
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* Global font set to Times New Roman — browser will use this or fall back to Times/serif */
+  font-family: 'Times New Roman', Times, serif;
+  /* Increase base font size for better readability */
+  font-size: 18px;
   line-height: 1.5;
   font-weight: 400;
 
@@ -29,6 +32,7 @@ body {
   width: 100%;
   /*min-width: 320px;*/
   min-height: 100vh;
+  background-color: #cfd8ae;  /* Add your desired background color here */
 }
 
 h1 {
