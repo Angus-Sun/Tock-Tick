@@ -3,7 +3,7 @@ import usePoseDetection from '../hooks/usePoseDetection';
 import ScoreDisplay from './ScoreDisplay';
 import { perJointSimilarity, JOINT_NAMES, similarityToColor, perJointAngleSimilarity } from '../utils/poseUtil';
 
-export default function WebcamFeed({ referenceSequence, autoSkipDefault }) {
+export default function WebcamFeed({ referenceSequence, autoSkipDefault, onStream, autoStart = false, withAudio = false }) {
 	const videoRef = useRef(null);
 	const canvasRef = useRef(null);
 		const [status, setStatus] = useState('idle'); // idle | requesting | ready | error
@@ -29,6 +29,9 @@ export default function WebcamFeed({ referenceSequence, autoSkipDefault }) {
 		autoSkip,
 	});
 
+	// defensive length value for referenceSequence (avoid reading .length on null)
+	const referenceLen = Array.isArray(referenceSequence) ? referenceSequence.length : 0;
+
 	// compute overall dance accuracy as the mean of per-step best scores (0..100)
 	const overallAccuracy = (perStepScores && perStepScores.length)
 		? Math.round((perStepScores.reduce((a, b) => a + (b || 0), 0) / perStepScores.length) * 100)
@@ -45,9 +48,13 @@ export default function WebcamFeed({ referenceSequence, autoSkipDefault }) {
 		setStatus('requesting');
 		setErrorMsg('');
 		try {
-			const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+			const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: withAudio });
 			// show the raw stream immediately so user sees themselves even if MediaPipe hasn't started
 			videoRef.current.srcObject = stream;
+			// if parent wants the stream (e.g., to record) provide it
+			if (typeof onStream === 'function') {
+				onStream(stream);
+			}
 			videoRef.current.play().catch(() => {});
 			setStatus('ready');
 			// start pose detection hook which uses MediaPipe Camera under the hood
@@ -63,6 +70,12 @@ export default function WebcamFeed({ referenceSequence, autoSkipDefault }) {
 			setErrorMsg(err?.message || String(err));
 		}
 	}
+
+	// if autoStart is requested, enable camera on mount
+	useEffect(() => {
+		if (autoStart) enableCameraAndStart();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [autoStart]);
 
 		// Drawing overlay: landmarks and skeleton
 		useEffect(() => {
@@ -160,7 +173,7 @@ export default function WebcamFeed({ referenceSequence, autoSkipDefault }) {
 						}
 
 				// draw reference target in cyan
-				const target = referenceSequence && referenceSequence.length ? referenceSequence[Math.min(currentStep, referenceSequence.length - 1)] : null;
+				const target = referenceLen > 0 ? referenceSequence[Math.min(currentStep, referenceLen - 1)] : null;
 						if (target && showReference) {
 							let perColors = null;
 							try {
@@ -226,7 +239,7 @@ export default function WebcamFeed({ referenceSequence, autoSkipDefault }) {
 
 					<div style={{ marginTop: 8 }}>
 						<ScoreDisplay state={{ lastSimilarity: currentScore / 100, overall: overallAccuracy, stepScores: perStepScores.map(s => Math.round(s * 100)), index: currentStep, targets: referenceSequence }} />
-						{referenceSequence && referenceSequence.length > 0 && (
+						{referenceLen > 0 && (
 							<div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(255,255,255,0.04)', borderRadius: 8, display: 'inline-block' }}>
 								<div style={{ fontSize: 12, color: '#ddd' }}>Overall dance accuracy</div>
 								<div style={{ fontSize: 20, fontWeight: 800, color: '#fff' }}>{overallAccuracy}%</div>
@@ -240,9 +253,9 @@ export default function WebcamFeed({ referenceSequence, autoSkipDefault }) {
 						</div>
 						{/* simple step progress */}
 						<div style={{ marginTop: 8 }}>
-							<strong>Step:</strong> {Math.min(currentStep + 1, referenceSequence.length)} / {referenceSequence.length || 0}
+							<strong>Step:</strong> {Math.min(currentStep + 1, referenceLen)} / {referenceLen}
 							<div style={{ height: 8, background: '#eee', borderRadius: 4, overflow: 'hidden', marginTop: 6 }}>
-								<div style={{ width: `${((currentStep + (currentScore/100)) / Math.max(1, referenceSequence.length)) * 100}%`, height: '100%', background: '#4caf50' }} />
+								<div style={{ width: `${((currentStep + (currentScore/100)) / Math.max(1, referenceLen)) * 100}%`, height: '100%', background: '#4caf50' }} />
 							</div>
 							{perStepScores && perStepScores.length > 0 && (
 								<div style={{ marginTop: 8, fontSize: 13 }}>

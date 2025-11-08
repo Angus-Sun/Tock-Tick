@@ -3,7 +3,10 @@ import React from 'react';
 // Simple display component for pose scoring state
 export default function ScoreDisplay({ state }) {
   if (!state) return null;
-  const { index = 0, targets = [], lastSimilarity = 0, overall = 0, stepScores = [] } = state;
+  const { index = 0, lastSimilarity = 0, overall = 0 } = state;
+  // defensive: targets or stepScores might be null in some cases; coerce to arrays
+  const targets = Array.isArray(state.targets) ? state.targets : [];
+  const stepScores = Array.isArray(state.stepScores) ? state.stepScores : [];
   const stepNum = targets.length ? Math.min(index + 1, targets.length) : 0;
 
   return (

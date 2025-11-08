@@ -1,0 +1,22 @@
+
+/* Minimal upload page styles (user provided an empty CSS file). */
+.upload-container {
+  max-width: 800px;
+  margin: 24px auto;
+  padding: 16px;
+}
+.upload-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.file-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.file-label {
+  cursor: pointer;
+  color: #0ea5e9;
+}
+.file-name { color: #10b981; }
