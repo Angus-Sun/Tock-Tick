@@ -34,6 +34,34 @@ body {
   background-color: #cfd8ae;  /* Add your desired background color here */
 }
 
+/* Subtle, low-contrast scrollbars (Chrome/Edge/Safari) */
+/* Scope globally to body/html so all pages benefit */
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track {
+  background: #141414; /* dark track */
+}
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #2f6b2f, #274f27);
+  border-radius: 10px;
+  border: 2px solid #141414; /* creates a gap and lowers perceived thickness */
+}
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #3b7a3b, #2f6b2f);
+}
+
+/* Firefox thin scrollbar */
+html, body {
+  scrollbar-width: thin;            /* thin | auto | none */
+  scrollbar-color: #2f6b2f #141414; /* thumb | track */
+}
+
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
