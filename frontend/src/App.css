@@ -4,17 +4,13 @@
   /* Add top padding to prevent content from being hidden under the fixed 48px navbar */
   padding-top: calc(2rem + 48px);
   text-align: center;
-  background-color: #e7e7d2
 }
 
 .logo {
   height: 6em;
-  /*padding: 1.5em;*/
-  margin: 0;
+  padding: 1.5em;
   will-change: filter;
   transition: filter 300ms;
-  text-align: left;
-  position: fixed; top: 0;
 }
 .logo:hover {
   filter: drop-shadow(0 0 2em #646cffaa);
