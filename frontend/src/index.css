@@ -31,35 +31,33 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
-  background-color: #cfd8ae;  /* Add your desired background color here */
+  background-color: #0d0d0d;
 }
 
-/* Subtle, low-contrast scrollbars (Chrome/Edge/Safari) */
-/* Scope globally to body/html so all pages benefit */
 html::-webkit-scrollbar,
 body::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 html::-webkit-scrollbar-track,
 body::-webkit-scrollbar-track {
-  background: #141414; /* dark track */
+  background: #0f0f0f; /* near-black track */
 }
 html::-webkit-scrollbar-thumb,
 body::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #2f6b2f, #274f27);
+  background: linear-gradient(180deg, #242424, #151515);
   border-radius: 10px;
-  border: 2px solid #141414; /* creates a gap and lowers perceived thickness */
+  border: 2px solid #0f0f0f; /* creates a gap and lowers perceived thickness */
 }
 html::-webkit-scrollbar-thumb:hover,
 body::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #3b7a3b, #2f6b2f);
+  background: linear-gradient(180deg, #2a2a2a, #1a1a1a);
 }
 
 /* Firefox thin scrollbar */
 html, body {
   scrollbar-width: thin;            /* thin | auto | none */
-  scrollbar-color: #2f6b2f #141414; /* thumb | track */
+  scrollbar-color: #1f1f1f #0f0f0f; /* thumb | track */
 }
 
 h1 {
