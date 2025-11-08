@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import './App.css'
@@ -30,6 +31,8 @@ function App() {
     setReferenceSequence(sampleReference);
   }
 
+
+
   return (
     <>
       <div>
@@ -42,18 +45,25 @@ function App() {
       </div>
       <h1>Vite + React</h1>
       <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.jsx</code> and save to test HMR
-        </p>
+        <h2>Choose Practice Mode</h2>
+        <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
+          <Link to="/video-practice" style={{ 
+            padding: '12px 24px',
+            background: '#4CAF50',
+            color: 'white',
+            textDecoration: 'none',
+            borderRadius: 8,
+            fontWeight: 'bold'
+          }}>
+            Practice with Video
+          </Link>
+          <button style={{ padding: '12px 24px' }} onClick={() => document.getElementById('stepDemo').scrollIntoView({ behavior: 'smooth' })}>
+            Practice with Steps
+          </button>
+        </div>
       </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-      <section style={{ marginTop: 24 }}>
-        <h2>Live Pose Demo</h2>
+      <section id="stepDemo" style={{ marginTop: 24 }}>
+        <h2>Step-by-Step Practice</h2>
         <div style={{ marginBottom: 8 }}>
           <label style={{ marginRight: 8 }}>
             Load reference JSON:
