@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../utils/supabaseClient.js";
 import { v4 as uuidv4 } from "uuid";
@@ -12,6 +12,11 @@ export default function UploadPage() {
   const [uploading, setUploading] = useState(false);
   const [successUrl, setSuccessUrl] = useState("");
   const [dragActive, setDragActive] = useState(false);
+
+  // Scroll to top when component mounts
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];

@@ -1,15 +1,17 @@
 /* Modern Upload Page - sleek dark with subtle matcha accents */
 .upload-container {
   background: #0d0d0d;
-  min-height: 100vh;
-  padding: 110px 24px 60px;
+  /* Removed min-height to eliminate forced full viewport height that created excess bottom space */
+  padding: 30px 24px; /* Top accounts for fixed navbar (60px) + breathing; reduced bottom to tighten layout */
   text-align: center;
   animation: fadeIn 0.6s ease;
-  /* Scale to 75% for more compact layout */
-  transform: scale(0.75);
+  /* Keep compact scale but drop width compensation to avoid horizontal overflow */
+  --page-scale: 0.75;
+  transform: scale(var(--page-scale));
   transform-origin: top center;
-  width: 133.33%; /* compensate: 100% / 0.75 */
-  margin-left: -16.665%; /* center: (133.33% - 100%) / 2 */
+  max-width: 1400px; /* Center similar to profile page */
+  margin: 0 auto;
+  overflow-x: hidden;
 }
 
 .upload-container h1 {
@@ -219,7 +221,8 @@
 
 @media (max-width: 640px) {
   .upload-container {
-    padding: 90px 16px 40px;
+    padding: 84px 16px 28px; /* tighter mobile spacing */
+    transform: none; /* avoid double scaling on small screens */
   }
   
   .upload-container h1 {

@@ -20,6 +20,7 @@ export default function ChallengePage() {
   const chunksRef = useRef([]);
 
   useEffect(() => {
+    window.scrollTo(0, 0);
     fetchChallenge();
     startCamera();
   }, []);

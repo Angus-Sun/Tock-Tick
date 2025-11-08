@@ -1,25 +1,38 @@
 .challenge {
   max-width: 1000px;
   margin: 0 auto;
-  padding: 16px;
+  padding: 66px 20px 20px;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: #0d0d0d;
+  min-height: 100vh;
+  color: #e6e6e6;
+  animation: fadeIn 0.6s ease;
+  transform: scale(0.9);
+  transform-origin: top center;
 }
 
 .challenge__header {
   display: flex;
   justify-content: space-between;
-  align-items: end;
+  align-items: flex-end;
   margin-bottom: 12px;
+  animation: slideDown 0.7s ease;
 }
 
 .challenge__title {
   margin: 0;
-  font-size: 1.6rem;
+  font-size: 1.8rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  background: linear-gradient(90deg, #d9f6d9, #9dd49d, #d9f6d9);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .challenge__meta {
-  margin: 4px 0 0;
-  color: #64748b;
+  margin: 8px 0 0;
+  color: #8b938b;
   font-size: 0.95rem;
 }
 
@@ -28,83 +41,264 @@
   grid-template-columns: 1fr 1fr;
   gap: 16px;
   align-items: start;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
+  animation: slideUp 0.8s ease;
 }
 
 .pane__left, .pane__right {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 12px;
-  background: #fff;
+  border: 1px solid #232323;
+  border-radius: 14px;
+  padding: 14px;
+  background: #161616;
+  transition: all 0.3s ease;
+}
+
+.pane__left:hover, .pane__right:hover {
+  border-color: #2a2a2a;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
 }
 
 .pane__label {
-  margin: 0 0 8px;
-  color: #334155;
-  font-weight: 600;
+  margin: 0 0 10px;
+  color: #d1e8d1;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.3px;
 }
 
 .pane__video {
   width: 100%;
-  border-radius: 8px;
+  aspect-ratio: 9 / 16; /* Portrait orientation for dance videos */
+  object-fit: cover;
+  border-radius: 12px;
   outline: none;
+  background: #0d0d0d;
+  transition: transform 0.3s ease;
+  height: auto;
+  max-width: 280px; /* Limit width to maintain portrait shape */
+  margin: 0 auto; /* Center the video */
+  display: block;
+}
+
+.pane__video:hover {
+  transform: scale(1.01);
 }
 
 .input {
   width: 100%;
-  padding: 10px 12px;
-  margin: 8px 0;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
+  padding: 14px 18px;
+  margin: 10px 0;
+  border: 1px solid #232323;
+  border-radius: 12px;
   font-size: 0.95rem;
+  background: #0d0d0d;
+  color: #e6e6e6;
+  font-family: inherit;
+  transition: all 0.3s ease;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #3b7a3b;
+  box-shadow: 0 0 0 3px rgba(59, 122, 59, 0.15);
+  transform: translateY(-2px);
+}
+
+.input::placeholder {
+  color: #6a6a6a;
 }
 
 .btn {
   width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #0ea5e9;
-  background: #0ea5e9;
-  color: #fff;
-  border-radius: 8px;
-  font-weight: 600;
+  padding: 12px 18px;
+  border: none;
+  background: linear-gradient(135deg, #3b7a3b, #2f612f);
+  color: #f1fff1;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 0.95rem;
   cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 20px -8px rgba(59, 122, 59, 0.5);
+  position: relative;
+  overflow: hidden;
 }
+
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s ease, height 0.6s ease;
+}
+
+.btn:hover::before {
+  width: 300px;
+  height: 300px;
+}
+
+.btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #4a9a4a, #3b7a3b);
+  transform: translateY(-3px);
+  box-shadow: 0 12px 28px -10px rgba(59, 122, 59, 0.65);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(-1px);
+}
+
 .btn:disabled {
-  opacity: 0.6;
-  cursor: default;
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #2a2a2a;
+  color: #6a6a6a;
+  box-shadow: none;
 }
 
 .error {
-  color: #b91c1c;
-  margin-top: 8px;
+  color: #ff6b6b;
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: rgba(255, 107, 107, 0.1);
+  border-radius: 8px;
+  border-left: 3px solid #ff6b6b;
+  font-size: 0.9rem;
+  animation: shake 0.4s ease;
 }
 
 .challenge__leaderboard {
-  margin-top: 8px;
+  margin-top: 20px;
+  animation: slideUp 0.9s ease;
 }
+
 .video-container {
   position: relative;
   width: 100%;
+  max-width: 280px; /* Match video max-width for consistent portrait container */
+  margin: 0 auto 16px; /* Center the container and add space below video */
+  overflow: hidden; /* Prevent countdown from overflowing */
+  border-radius: 12px; /* Match video border radius */
 }
+
 .countdown-overlay {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(15, 23, 42, 0.7);
-  color: white;
+  background: rgba(13, 13, 13, 0.9);
+  backdrop-filter: blur(8px);
+  color: #d9f6d9;
   font-size: 4rem;
-  font-weight: 700;
-  border-radius: 8px;
+  font-weight: 800;
+  border-radius: 12px;
   z-index: 10;
+  animation: pulse 1s ease-in-out infinite;
+  overflow: hidden; /* Prevent text overflow */
 }
+
 .btn-stop {
-  background: #ef4444;
-  border-color: #ef4444;
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  box-shadow: 0 8px 20px -8px rgba(220, 38, 38, 0.5);
 }
+
+.btn-stop:hover:not(:disabled) {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  box-shadow: 0 12px 28px -10px rgba(220, 38, 38, 0.65);
+}
+
 .preview {
-  margin-top: 12px;
-  border-top: 1px solid #e2e8f0;
-  padding-top: 10px;
+  margin-top: 16px;
+  border-top: 1px solid #232323;
+  padding-top: 16px;
+}
+
+/* Keyframe animations for smooth transitions */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideDown {
+  from { 
+    opacity: 0; 
+    transform: translateY(-20px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes slideUp {
+  from { 
+    opacity: 0; 
+    transform: translateY(20px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+@keyframes pulse {
+  0%, 100% { 
+    transform: scale(1); 
+    opacity: 1; 
+  }
+  50% { 
+    transform: scale(1.05); 
+    opacity: 0.9; 
+  }
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+  20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .challenge {
+    padding: 70px 16px 24px;
+  }
+
+  .challenge__title {
+    font-size: 1.8rem;
+  }
+
+  .challenge__pane {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .countdown-overlay {
+    font-size: 3.5rem;
+  }
+
+  .pane__left, .pane__right {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .challenge__title {
+    font-size: 1.5rem;
+  }
+
+  .countdown-overlay {
+    font-size: 2.5rem;
+  }
+
+  .btn {
+    padding: 12px 18px;
+    font-size: 0.95rem;
+  }
 }

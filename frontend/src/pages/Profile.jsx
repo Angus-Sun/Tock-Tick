@@ -138,9 +138,8 @@ export default function ProfilePage() {
             <div className="profile-stat-label">Mimics</div>
           </div>
         </div>
+        </div>
       </div>
-
-    </div>
 
       <div className="profile-content">
         <div className="profile-tabs">
@@ -163,9 +162,18 @@ export default function ProfilePage() {
             ) : (
               <div className="profile-video-grid">
                 {uploads.map((u) => (
-                  <div key={u.id} onClick={() => navigate(`/challenge/${u.id}`)} className="profile-video-card">
-                    <video src={u.video_url} onMouseOver={(e) => e.target.play()} onMouseOut={(e) => {e.target.pause(); e.target.currentTime = 0;}} />
-                    <div className="profile-video-overlay">{u.title}</div>
+                  <div key={u.id} className="profile-video-card">
+                    <div className="profile-video-shell">
+                      <video 
+                        src={u.video_url} 
+                        muted
+                        playsInline
+                        onMouseEnter={(e) => e.target.play()} 
+                        onMouseLeave={(e) => {e.target.pause(); e.target.currentTime = 0;}} 
+                      />
+                    </div>
+                    <h3 className="profile-video-title">{u.title}</h3>
+                    <button onClick={() => navigate(`/challenge/${u.id}`)} className="profile-compete-btn">Compete</button>
                   </div>
                 ))}
               </div>
@@ -185,11 +193,17 @@ export default function ProfilePage() {
               <div className="profile-video-grid">
                 {mimics.map((m) => (
                   <div key={m.id} onClick={() => navigate(`/challenge/${m.challenge_id}`)} className="profile-video-card">
-                    <video src={m.mimic_url} onMouseOver={(e) => e.target.play()} onMouseOut={(e) => {e.target.pause(); e.target.currentTime = 0;}} />
-                    <div className="profile-video-overlay">
-                      <div>{m.challenges?.title}</div>
-                      <div className="profile-video-score">⭐ {m.score?.toFixed(1)}%</div>
+                    <div className="profile-video-shell">
+                      <video 
+                        src={m.mimic_url} 
+                        muted
+                        playsInline
+                        onMouseEnter={(e) => e.target.play()} 
+                        onMouseLeave={(e) => {e.target.pause(); e.target.currentTime = 0;}} 
+                      />
                     </div>
+                    <h3 className="profile-video-title">{m.challenges?.title}</h3>
+                    <p className="profile-video-score">⭐ {m.score?.toFixed(1)}%</p>
                   </div>
                 ))}
               </div>
