@@ -56,7 +56,8 @@ export async function processVideoFile(file, { sampleFps = 15, smoothWindow = 5,
 
   // If the caller requested fixed-interval sampling (e.g. every 0.25s), choose frames nearest to those times
   if (fixedIntervalSeconds && fixedIntervalSeconds > 0) {
-    const duration = frames[frames.length - 1].time || 0;
+    // Prefer the video's declared duration when available; fallback to last sampled time
+    const duration = (video.duration && !isNaN(video.duration) && video.duration > 0) ? video.duration : (frames[frames.length - 1].time || 0);
     if (duration <= 0) return { referenceSequence: [], stepTimes: [], suggestedAutoSkip: 0 };
     const times = [];
     for (let t = 0; t <= duration + 1e-6; t += fixedIntervalSeconds) times.push(t);
@@ -74,9 +75,28 @@ export async function processVideoFile(file, { sampleFps = 15, smoothWindow = 5,
       return bestIdx;
     });
 
+    // If many targets map to the same frame (common when frames have missing/constant times),
+    // dedupe while preserving order. If deduplication yields only one index but multiple
+    // frames exist, fall back to evenly spaced frame selection to get multiple steps.
+    const uniqueIndices = stepIndices.reduce((acc, cur) => {
+      if (!acc.length || acc[acc.length - 1] !== cur) acc.push(cur);
+      return acc;
+    }, []);
+
+    let finalIndices = uniqueIndices;
+    if (finalIndices.length <= 1 && frames.length > 1) {
+      // pick N frames evenly spaced based on duration and desired interval
+      const approxCount = Math.max(1, Math.round(duration / fixedIntervalSeconds));
+      const step = Math.max(1, Math.floor(frames.length / Math.max(1, approxCount)));
+      finalIndices = [];
+      for (let i = 0; i < frames.length; i += step) finalIndices.push(i);
+      // ensure last frame included
+      if (finalIndices[finalIndices.length - 1] !== frames.length - 1) finalIndices.push(frames.length - 1);
+    }
+
     // build referenceSequence and times
-    const referenceSequence = stepIndices.map(i => frames[i].landmarks || []);
-    const stepTimes = stepIndices.map(i => frames[i].time || 0);
+    const referenceSequence = finalIndices.map(i => frames[i].landmarks || []);
+    const stepTimes = finalIndices.map(i => frames[i].time || 0);
     const suggestedAutoSkip = fixedIntervalSeconds;
     try { URL.revokeObjectURL(video.src); } catch (e) {}
     return { referenceSequence, stepTimes, suggestedAutoSkip };

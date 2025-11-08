@@ -21,6 +21,7 @@ export default function usePoseDetection({
 } = {}) {
 	const poseRef = useRef(null);
 	const cameraRef = useRef(null);
+	const lastPoseRef = useRef(null);
 	const framesAboveRef = useRef(0);
 	const stepRef = useRef(0);
 	const perStepBestRef = useRef([]);
@@ -119,20 +120,29 @@ export default function usePoseDetection({
 					// Angle-based per-joint similarity (preferred)
 							let sim = 0;
 							try {
-								const sims = perJointAngleSimilarity(landmarks, target, { angleTolerance: 35, distTolerance: 0.75, visibilityThreshold: 0.2 });
+								const sims = perJointAngleSimilarity(landmarks, target, { angleTolerance: 25, distTolerance: 0.6, visibilityThreshold: 0.25 });
 								// expose last per-joint sims for debugging/UI
 								try { setLastPerJointSims(sims); } catch (e) { }
 								// Weigh joints: give more importance to shoulders (arms) while still using hips/knees
 								// Includes an explicit shoulder-spread term to capture arms-out vs arms-down differences
+								// Rebalanced weights: emphasize arms (shoulder/elbow/wrist) and legs (knee/ankle),
+								// de-emphasize hips/torso/head so standing still doesn't score highly.
 								const weightMap = {
+									// legs
 									25: 0.10, // left_knee
 									26: 0.10, // right_knee
-									23: 0.10, // left_hip
-									24: 0.10, // right_hip
-									11: 0.20, // left_shoulder  (increased)
-									12: 0.20, // right_shoulder (increased)
-									13: 0.10, // left_elbow
-									14: 0.10, // right_elbow
+									27: 0.06, // left_ankle
+									28: 0.06, // right_ankle
+									// hips (lower weight)
+									23: 0.06, // left_hip
+									24: 0.06, // right_hip
+									// arms (higher weight)
+									11: 0.14, // left_shoulder
+									12: 0.14, // right_shoulder
+									13: 0.12, // left_elbow
+									14: 0.12, // right_elbow
+									15: 0.12, // left_wrist
+									16: 0.12, // right_wrist
 								};
 								const shoulderSpreadWeight = 0.15; // extra term (0..1 weight) for shoulder width similarity
 								let sum = 0;
@@ -140,8 +150,8 @@ export default function usePoseDetection({
 								for (const idxStr of Object.keys(weightMap)) {
 									const idx = Number(idxStr);
 									const w = weightMap[idx];
-									// fallback to conservative 0.2 when sim missing
-									const s = (sims && sims[idx] != null) ? sims[idx] : 0.2;
+									// fallback to conservative 0.1 when sim missing
+									const s = (sims && sims[idx] != null) ? sims[idx] : 0.1;
 									sum += s * w;
 									wsum += w;
 								}
@@ -150,6 +160,42 @@ export default function usePoseDetection({
 								sum += shoulderSpreadSim * shoulderSpreadWeight;
 								wsum += shoulderSpreadWeight;
 								sim = wsum ? sum / wsum : 0;
+
+								// Motion penalty: if the reference is moving between consecutive steps but the
+								// user is not moving, reduce similarity so standing still doesn't score highly.
+								try {
+									const prevTarget = referenceSequence && referenceSequence[Math.max(0, stepRef.current - 1)];
+									let refMotion = 0;
+									if (prevTarget && Array.isArray(prevTarget) && Array.isArray(target) && prevTarget.length === target.length) {
+										let s = 0;
+										let cnt = 0;
+										for (let i = 0; i < target.length; i++) {
+											const a = prevTarget[i];
+											const b = target[i];
+											if (!a || !b) continue;
+											s += Math.hypot(a.x - b.x, a.y - b.y, (a.z || 0) - (b.z || 0));
+											cnt++;
+										}
+										refMotion = cnt ? s / cnt : 0;
+									}
+
+								let userMotion = 0;
+								if (lastPoseRef.current && Array.isArray(lastPoseRef.current) && Array.isArray(landmarks) && lastPoseRef.current.length === landmarks.length) {
+									let s2 = 0, c2 = 0;
+									for (let i = 0; i < landmarks.length; i++) {
+										const a = lastPoseRef.current[i];
+										const b = landmarks[i];
+										if (!a || !b) continue;
+										s2 += Math.hypot(a.x - b.x, a.y - b.y, (a.z || 0) - (b.z || 0));
+										c2++;
+									}
+									userMotion = c2 ? s2 / c2 : 0;
+								}
+
+								if (refMotion > 0.02 && userMotion < Math.max(0.004, refMotion * 0.4)) {
+									sim *= 0.35;
+								}
+								} catch (e) {}
 
 								// update per-step best for the current step
 								if (typeof stepRef.current === 'number') {
@@ -166,7 +212,10 @@ export default function usePoseDetection({
 
 							if (sim >= threshold) framesAboveRef.current += 1; else framesAboveRef.current = 0;
 
-					if (framesAboveRef.current >= hold) {
+					// If autoSkip timing is enabled, prefer time-based advancement instead of
+					// requiring the user to hit accuracy thresholds. Otherwise, allow
+					// sim/hold-based advancement as before.
+					if ((!autoSkip || autoSkip <= 0) && framesAboveRef.current >= hold) {
 				framesAboveRef.current = 0;
 				// advance step (cap at last index). If we're at the final step, stay there.
 						if (referenceSequence && referenceSequence.length > 0) {
@@ -202,6 +251,11 @@ export default function usePoseDetection({
 					} catch (e) {}
 
 				if (typeof onResult === 'function') onResult({ pose: landmarks, score, step: stepRef.current, perJoint: lastPerJointSims });
+
+				// update lastPoseRef for motion comparisons on the next frame
+				try {
+					lastPoseRef.current = landmarks && Array.isArray(landmarks) ? landmarks.map(l => ({ x: l.x, y: l.y, z: l.z })) : null;
+				} catch (e) {}
 
 				// debug log: step, sim, framesAbove
 				try {

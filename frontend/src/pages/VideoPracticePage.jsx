@@ -23,7 +23,7 @@ export default function VideoPracticePage() {
     if (!file) return;
     try {
       setGenerating(true);
-      const { referenceSequence, stepTimes } = await processVideoFile(file, { sampleFps: 15, fixedIntervalSeconds: 0.25 });
+  const { referenceSequence, stepTimes } = await processVideoFile(file, { sampleFps: 15, fixedIntervalSeconds: 0.5 });
       // Integrate generated reference directly into app by navigating back to the main page
       // and passing the referenceSequence via location.state so App can pick it up.
       navigate('/', { state: { referenceSequence, stepTimes } });

@@ -3,7 +3,7 @@ import usePoseDetection from '../hooks/usePoseDetection';
 import ScoreDisplay from './ScoreDisplay';
 import { perJointSimilarity, JOINT_NAMES, similarityToColor, perJointAngleSimilarity } from '../utils/poseUtil';
 
-export default function WebcamFeed({ referenceSequence }) {
+export default function WebcamFeed({ referenceSequence, autoSkipDefault }) {
 	const videoRef = useRef(null);
 	const canvasRef = useRef(null);
 		const [status, setStatus] = useState('idle'); // idle | requesting | ready | error
@@ -13,7 +13,14 @@ export default function WebcamFeed({ referenceSequence }) {
 		const [showLive, setShowLive] = useState(true);
 		const [colorBySimilarity, setColorBySimilarity] = useState(true);
 
-	const [autoSkip, setAutoSkip] = useState(5.0); // seconds to auto-skip if user doesn't match (0 = disabled)
+	const [autoSkip, setAutoSkip] = useState(typeof autoSkipDefault === 'number' ? autoSkipDefault : 5.0); // seconds to auto-skip if user doesn't match (0 = disabled)
+
+	// update local autoSkip if the parent provides a default (e.g., generated from video step times)
+	useEffect(() => {
+		if (typeof autoSkipDefault === 'number' && !Number.isNaN(autoSkipDefault)) {
+			setAutoSkip(autoSkipDefault);
+		}
+	}, [autoSkipDefault]);
 	const { currentScore, currentStep, perStepScores, isRunning, start, stop, reset, nextStep, prevStep } = usePoseDetection({
 		videoRef,
 		referenceSequence,

@@ -21,8 +21,10 @@ export default function useVideoTimedPoseDetection({
   const cameraRef = useRef(null);
   const referenceVideoRef = useRef(null);
   const referenceDetectorRef = useRef(null);
+  const referencePrevRef = useRef(null);
   const startTimeRef = useRef(0);
   const referencePosesRef = useRef([]);
+  const lastPoseRef = useRef(null);
 
   const [isRunning, setIsRunning] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -50,37 +52,51 @@ export default function useVideoTimedPoseDetection({
     if (!referenceVideo || !referenceVideoRef.current) return;
 
     let pose = null;
+    let cancelled = false;
     setIsLoading(true);
     setLoadingProgress(10);
 
     // Use the shared MediaPipe instance
-    initializePoseDetection(
-      (progress) => setLoadingProgress(10 + Math.floor(progress * 0.8))
-    ).then(p => {
-      pose = p;
-      setLoadingProgress(90);
+    initializePoseDetection((progress) => setLoadingProgress(10 + Math.floor(progress * 0.8)))
+      .then((p) => {
+        if (cancelled) return;
+        pose = p;
+        setLoadingProgress(90);
 
-    // Store the most recent pose results for the current timestamp
-    pose.onResults((results) => {
-      if (results.poseLandmarks) {
-        referencePosesRef.current = {
-          timestamp: referenceVideoRef.current.currentTime,
-          landmarks: results.poseLandmarks,
-        };
-      }
-    });
+        // Store the most recent pose results for the current timestamp
+        pose.onResults((results) => {
+          if (results.poseLandmarks) {
+            try {
+              referencePrevRef.current = referencePosesRef.current && referencePosesRef.current.landmarks ? referencePosesRef.current.landmarks : null;
+            } catch (e) {}
+            referencePosesRef.current = {
+              timestamp: referenceVideoRef.current.currentTime,
+              landmarks: results.poseLandmarks,
+            };
+          }
+        });
 
-    referenceDetectorRef.current = pose;
-    setReferenceLoaded(true);
-    setIsLoading(false);
-    setLoadingProgress(100);
+        referenceDetectorRef.current = pose;
+        setReferenceLoaded(true);
+        setIsLoading(false);
+        setLoadingProgress(100);
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        console.error('initializePoseDetection failed', e);
+        setError(e);
+        setIsLoading(false);
+      });
 
-    // No need to close the shared instance
-    return () => {};
+    // cleanup for the effect
+    return () => {
+      cancelled = true;
+      // no need to close the shared instance here (it's shared)
+    };
   }, [referenceVideo]);
 
   // Main pose detection for webcam
-  const start = useCallback(() => {
+  const start = useCallback(async () => {
     if (!videoRef?.current || !referenceLoaded) return;
     setIsRunning(true);
     startTimeRef.current = Date.now();
@@ -108,28 +124,37 @@ export default function useVideoTimedPoseDetection({
       // Score against reference using angle-based similarity
       try {
         const sims = perJointAngleSimilarity(landmarks, reference.landmarks, {
-          angleTolerance: 35,
-          distTolerance: 0.75,
-          visibilityThreshold: 0.2
+          angleTolerance: 25,
+          distTolerance: 0.6,
+          visibilityThreshold: 0.25
         });
 
         // Weight joints like the original hook
+        // Rebalanced weights: emphasize arms (shoulder/elbow/wrist) and legs (knee/ankle),
+        // de-emphasize hips/torso/head so standing still doesn't score highly.
         const weightMap = {
+          // legs
           25: 0.10, // left_knee
           26: 0.10, // right_knee
-          23: 0.10, // left_hip
-          24: 0.10, // right_hip
-          11: 0.20, // left_shoulder
-          12: 0.20, // right_shoulder
-          13: 0.10, // left_elbow
-          14: 0.10, // right_elbow
+          27: 0.06, // left_ankle
+          28: 0.06, // right_ankle
+          // hips (lower weight)
+          23: 0.06, // left_hip
+          24: 0.06, // right_hip
+          // arms (higher weight)
+          11: 0.14, // left_shoulder
+          12: 0.14, // right_shoulder
+          13: 0.12, // left_elbow
+          14: 0.12, // right_elbow
+          15: 0.12, // left_wrist
+          16: 0.12, // right_wrist
         };
         const shoulderSpreadWeight = 0.15;
 
         let sum = 0;
         let wsum = 0;
         for (const [idx, w] of Object.entries(weightMap)) {
-          const s = (sims && sims[idx] != null) ? sims[idx] : 0.2;
+          const s = (sims && sims[idx] != null) ? sims[idx] : 0.1;
           sum += s * w;
           wsum += w;
         }
@@ -139,6 +164,42 @@ export default function useVideoTimedPoseDetection({
         wsum += shoulderSpreadWeight;
 
         const sim = wsum ? sum / wsum : 0;
+
+        // Motion penalty similar to the other hook: if the reference is changing but
+        // the user is not moving, reduce similarity so standing still doesn't score high.
+        try {
+          const prevRef = referencePrevRef.current;
+          let refMotion = 0;
+          if (prevRef && Array.isArray(prevRef) && Array.isArray(reference.landmarks) && prevRef.length === reference.landmarks.length) {
+            let s = 0, c = 0;
+            for (let i = 0; i < prevRef.length; i++) {
+              const a = prevRef[i];
+              const b = reference.landmarks[i];
+              if (!a || !b) continue;
+              s += Math.hypot(a.x - b.x, a.y - b.y, (a.z || 0) - (b.z || 0));
+              c++;
+            }
+            refMotion = c ? s / c : 0;
+          }
+
+          let userMotion = 0;
+          if (lastPoseRef.current && Array.isArray(lastPoseRef.current) && Array.isArray(landmarks) && lastPoseRef.current.length === landmarks.length) {
+            let s2 = 0, c2 = 0;
+            for (let i = 0; i < landmarks.length; i++) {
+              const a = lastPoseRef.current[i];
+              const b = landmarks[i];
+              if (!a || !b) continue;
+              s2 += Math.hypot(a.x - b.x, a.y - b.y, (a.z || 0) - (b.z || 0));
+              c2++;
+            }
+            userMotion = c2 ? s2 / c2 : 0;
+          }
+
+          if (refMotion > 0.02 && userMotion < Math.max(0.004, refMotion * 0.4)) {
+            sim *= 0.35;
+          }
+        } catch (e) {}
+
         const score = Math.round(sim * 100);
         setCurrentScore(score);
 
@@ -153,6 +214,8 @@ export default function useVideoTimedPoseDetection({
         if (typeof onResult === 'function') {
           onResult({ pose: landmarks, score, timestamp: elapsed });
         }
+        // store last user pose for motion comparisons
+        try { lastPoseRef.current = landmarks && Array.isArray(landmarks) ? landmarks.map(l => ({ x: l.x, y: l.y, z: l.z })) : null; } catch (e) {}
       } catch (e) {
         setCurrentScore(0);
       }
