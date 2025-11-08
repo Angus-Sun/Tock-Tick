@@ -114,7 +114,8 @@ export default function ProfilePage() {
           )}
         </div>
 
-        {isEditing ? (
+        <div className="profile-info">
+          {isEditing ? (
           <div className="profile-edit-form">
             <input value={username} onChange={e => setUsername(e.target.value)} placeholder="Display name" />
             <button onClick={() => { saveUsername(); setIsEditing(false); }} className="profile-btn-save">Save</button>
@@ -123,7 +124,7 @@ export default function ProfilePage() {
         ) : (
           <div className="profile-username-display">
             <h1>{profile?.username || user?.email}</h1>
-            <button onClick={() => setIsEditing(true)} className="profile-btn-edit">Edit profile</button>
+            <button onClick={() => setIsEditing(true)} className="profile-btn-edit">Edit✏️</button>
           </div>
         )}
 
@@ -137,7 +138,11 @@ export default function ProfilePage() {
             <div className="profile-stat-label">Mimics</div>
           </div>
         </div>
+      </div>
 
+    </div>
+
+      <div className="profile-content">
         <div className="profile-tabs">
           <button onClick={() => setActiveTab('uploads')} className={`profile-tab ${activeTab === 'uploads' ? 'active' : ''}`}>
             🎬 Challenges
@@ -146,9 +151,7 @@ export default function ProfilePage() {
             🎯 Mimics
           </button>
         </div>
-      </div>
 
-      <div className="profile-content">
         {activeTab === 'uploads' && (
           <div>
             {uploads.length === 0 ? (
