@@ -6,66 +6,84 @@ import "./Home.css";
 export default function Home() {
   const [challenges, setChallenges] = useState([]);
 
+  useEffect(() => { fetchChallenges(); }, []);
+
   useEffect(() => {
-    fetchChallenges();
-  }, []);
+    // intersection observer for fade-in
+    const observer = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+            observer.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.2 }
+    );
+    document.querySelectorAll('.animate-on-scroll').forEach(el => observer.observe(el));
+    return () => observer.disconnect();
+  }, [challenges]);
 
   const fetchChallenges = async () => {
     const { data, error } = await supabase
-      .from("challenges")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    setChallenges(data);
+      .from('challenges')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) { console.error(error); return; }
+    setChallenges(data || []);
   };
 
   return (
     <div className="home-page">
-      <header className="hero">
-        <div className="hero-inner">
-          <div className="hero-logo">MATCH-A DANCE</div>
-          <p className="hero-sub">Got the moves? Let’s see if they MATCH-A!</p>
-          <div className="hero-ctas">
-            <Link className="btn primary" to="/upload">Upload a Mimic</Link>
-            <a
-              className="btn secondary"
-              href="#challenges"
-              onClick={(e) => {
-                e.preventDefault();
-                const el = document.querySelector('.challenges');
-                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }}
-            >
-              Explore Challenges
-            </a>
-          </div>
+      <header className="home-hero">
+        <h1 className="home-title">Match-A Dance</h1>
+        <p className="home-sub">Discover community challenges & prove your mimic skills.</p>
+        <div className="home-actions">
+          <Link to="/upload" className="hero-btn accent">Upload</Link>
+          <a href="#challenge-feed" className="hero-btn outline" onClick={e => { e.preventDefault(); document.getElementById('challenge-feed')?.scrollIntoView({behavior:'smooth'}); }}>Explore</a>
         </div>
       </header>
 
-      <main className="content">
-        <section className="challenges">
-          <h2>Available Challenges</h2>
-          <div className="challenge-grid">
-            {challenges.map(challenge => (
-              <article key={challenge.id} className="challenge-card">
-                <h3>{challenge.title}</h3>
-                <p className="meta">By: {challenge.uploader}</p>
+      <main className="challenge-section" id="challenge-feed">
+        {challenges.length === 0 && <div className="empty">No challenges yet. Be first!</div>}
+        <div className="challenge-grid">
+          {challenges.map(challenge => (
+            <article key={challenge.id} className="challenge-card animate-on-scroll">
+              <div className="video-shell">
                 {challenge.video_url ? (
-                  <video src={challenge.video_url} controls width="100%" />
+                  <video
+                    className="challenge-video"
+                    src={challenge.video_url}
+                    muted
+                    playsInline
+                    onMouseEnter={e => e.currentTarget.play()}
+                    onMouseLeave={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0; }}
+                    controls
+                  />
                 ) : (
                   <div className="placeholder">No preview</div>
                 )}
-                <a className="btn small" href={`/challenge/${challenge.id}`}>Compete</a>
-              </article>
-            ))}
-          </div>
-        </section>
+              </div>
+              <h3 className="challenge-title">{challenge.title}</h3>
+              <p className="challenge-meta">By {challenge.uploader}</p>
+              <Link className="play-btn" to={`/challenge/${challenge.id}`}>Compete</Link>
+            </article>
+          ))}
+        </div>
       </main>
+      <footer className="site-footer">
+        <div className="footer-inner">
+          <div className="brand">TokTik</div>
+          <nav className="footer-links">
+            <a href="#about">About</a>
+            <a href="#terms">Terms</a>
+            <a href="#privacy">Privacy</a>
+            <a href="#contact">Contact</a>
+          </nav>
+          <div className="copy">© {new Date().getFullYear()} TokTik. All rights reserved.</div>
+        </div>
+      </footer>
     </div>
   );
 }
