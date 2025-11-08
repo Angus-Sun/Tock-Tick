@@ -82,3 +82,29 @@
 .challenge__leaderboard {
   margin-top: 8px;
 }
+.video-container {
+  position: relative;
+  width: 100%;
+}
+.countdown-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.7);
+  color: white;
+  font-size: 4rem;
+  font-weight: 700;
+  border-radius: 8px;
+  z-index: 10;
+}
+.btn-stop {
+  background: #ef4444;
+  border-color: #ef4444;
+}
+.preview {
+  margin-top: 12px;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 10px;
+}
