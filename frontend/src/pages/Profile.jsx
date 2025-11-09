@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
 import { useUser } from '../hooks/useUser.jsx';
+import { getUserStats } from '../utils/scoringAPI.js';
 import './Profile.css';
 
 export default function ProfilePage() {
@@ -13,6 +14,36 @@ export default function ProfilePage() {
   const [uploads, setUploads] = useState([]);
   const [mimics, setMimics] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [userStats, setUserStats] = useState(null);
+  const [ranking, setRanking] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  // Helper functions for tier display
+  const getTierIcon = (tier) => {
+    const icons = {
+      'LEGEND': '👑',
+      'MASTER': '💎',
+      'EXPERT': '🔥',
+      'ADVANCED': '⭐',
+      'INTERMEDIATE': '🌟',
+      'BEGINNER': '🌱',
+      'NOVICE': '🌸'
+    };
+    return icons[tier] || '🌸';
+  };
+
+  const getTierColor = (tier) => {
+    const colors = {
+      'LEGEND': '#FFD700',
+      'MASTER': '#E6E6FA',
+      'EXPERT': '#FF6B47',
+      'ADVANCED': '#4ECDC4',
+      'INTERMEDIATE': '#45B7D1',
+      'BEGINNER': '#96CEB4',
+      'NOVICE': '#FECA57'
+    };
+    return colors[tier] || '#FECA57';
+  };
 
   async function handleDelete(id, table) {
   const { error } = await supabase
@@ -96,9 +127,50 @@ export default function ProfilePage() {
     else setMimics(data || []);
   };
 
+  const fetchUserStats = async () => {
+    if (!user) return;
+    
+    setStatsLoading(true);
+    try {
+      // Try backend API first
+      const statsData = await getUserStats(user.id);
+      setUserStats(statsData.stats);
+      setRanking(statsData.ranking);
+    } catch (error) {
+      console.warn("Failed to fetch user stats from backend:", error);
+      
+      // Fallback to direct database query
+      try {
+        const { data: stats } = await supabase
+          .from('user_stats')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (stats) {
+          setUserStats(stats);
+          
+          // Get basic rank info
+          const { data: rank } = await supabase.rpc('get_user_rank', { 
+            user_uuid: user.id 
+          });
+          
+          if (rank && rank.length > 0) {
+            setRanking(rank[0]);
+          }
+        }
+      } catch (fallbackError) {
+        console.error("Failed to fetch user stats from database:", fallbackError);
+      }
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
   // Load data when tab or user changes
   useEffect(() => {
     if (!user) return;
+    fetchUserStats(); // Fetch stats whenever user changes
     if (activeTab === 'uploads') fetchUploads();
     if (activeTab === 'mimics') fetchMimics();
   }, [activeTab, user]);
@@ -153,7 +225,50 @@ export default function ProfilePage() {
             <div className="profile-stat-number">{mimics.length}</div>
             <div className="profile-stat-label">Mimics</div>
           </div>
+          {userStats && (
+            <>
+              <div className="profile-stat highlight">
+                <div className="profile-stat-number">{userStats.total_pp}</div>
+                <div className="profile-stat-label">Total PP</div>
+              </div>
+              <div className="profile-stat">
+                <div className="profile-stat-number">{userStats.average_score?.toFixed(1) || '0.0'}%</div>
+                <div className="profile-stat-label">Avg Score</div>
+              </div>
+            </>
+          )}
         </div>
+
+        {/* User Ranking & Tier Display */}
+        {userStats && (
+          <div className="profile-ranking">
+            <div className="rank-tier">
+              <span className="tier-icon">{getTierIcon(userStats.rank_tier)}</span>
+              <span className="tier-name" style={{ color: getTierColor(userStats.rank_tier) }}>
+                {userStats.rank_tier}
+              </span>
+            </div>
+            {ranking && (
+              <div className="rank-position">
+                <span className="rank-text">#{ranking.rank_position}</span>
+                <span className="rank-percentile">Top {ranking.percentile}%</span>
+              </div>
+            )}
+            {userStats.current_streak > 0 && (
+              <div className="streak-info">
+                <span className="streak-icon">🔥</span>
+                <span className="streak-text">{userStats.current_streak} streak</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {statsLoading && (
+          <div className="profile-stats-loading">
+            <div className="loading-spinner"></div>
+            <span>Loading stats...</span>
+          </div>
+        )}
         </div>
       </div>
 

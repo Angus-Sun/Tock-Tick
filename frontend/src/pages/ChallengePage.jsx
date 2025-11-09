@@ -3,7 +3,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../utils/supabaseClient.js";
 import { v4 as uuidv4 } from "uuid";
 import Leaderboard from "../components/Leaderboard.jsx";
+import ScoreDisplay from "../components/ScoreDisplay.jsx";
 import usePoseDetection from "../hooks/usePoseDetection.js";
+import { calculateScore, submitScore, calculateBasicScore, calculateBasicPP } from "../utils/scoringAPI.js";
 import "./ChallengePage.css";
 
 export default function ChallengePage() {
@@ -16,6 +18,8 @@ export default function ChallengePage() {
   const [recordedUrl, setRecordedUrl] = useState(null);
   const [countdown, setCountdown] = useState(null);
   const [finalScore, setFinalScore] = useState(null);
+  const [detailedScoreData, setDetailedScoreData] = useState(null);
+  const [showScoreDisplay, setShowScoreDisplay] = useState(false);
   const [poseReady, setPoseReady] = useState(false);
   const [poseInitializing, setPoseInitializing] = useState(true);
 
@@ -416,7 +420,7 @@ export default function ChallengePage() {
     }
   };
 
-  const stopRecording = () => {
+  const stopRecording = async () => {
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
       setRecording(false);
@@ -424,94 +428,200 @@ export default function ChallengePage() {
       // Stop pose detection
       stopPose();
       
-      // Calculate overall accuracy from perStepScores
-      // Use setTimeout to ensure state has updated after stopPose
-      setTimeout(() => {
-        // Use the ref to get the latest scores (not stale closure value)
-        const currentScores = scoresRef.current;
-        
-        console.log("Calculating final score from scoresRef:", currentScores);
-        
-        if (currentScores && currentScores.length > 0) {
-          const avg = currentScores.reduce((a, b) => a + (b || 0), 0) / currentScores.length;
-          const score = Math.round(avg * 100);
-          setFinalScore(score);
-          console.log("Final calculated score:", score, "from", currentScores.length, "steps", currentScores);
-        } else {
-          setFinalScore(0);
-          console.warn("No pose scores recorded - scoresRef was empty");
+      // Calculate comprehensive score using backend
+      setTimeout(async () => {
+        try {
+          const currentScores = scoresRef.current;
+          console.log("Calculating comprehensive score from:", currentScores);
+          
+          if (!currentScores || currentScores.length === 0) {
+            console.warn("No pose scores recorded");
+            setFinalScore(0);
+            return;
+          }
+
+          // Get current user for scoring calculation
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+            console.warn("No user found for scoring");
+            setFinalScore(calculateBasicScore(currentScores));
+            return;
+          }
+
+          // Prepare performance data for backend scoring
+          const performanceData = {
+            stepScores: currentScores,
+            timingData: [], // We can enhance this later with timing data
+            referenceSequence: challenge?.reference_sequence || [],
+            userPoses: [], // We can enhance this later with user pose data
+            challengeId: id,
+            userId: user.id
+          };
+
+          // Try to use backend scoring, fall back to basic calculation
+          let scoreData;
+          try {
+            scoreData = await calculateScore(performanceData);
+            console.log("Backend scoring result:", scoreData);
+          } catch (error) {
+            console.warn("Backend scoring failed, using fallback:", error);
+            // Fallback to basic scoring
+            const basicScore = calculateBasicScore(currentScores);
+            const basicPP = calculateBasicPP(basicScore, 'BEGINNER');
+            
+            scoreData = {
+              finalScore: basicScore,
+              breakdown: {
+                accuracy: basicScore,
+                consistency: Math.max(0, basicScore - 10),
+                timing: Math.max(0, basicScore - 5),
+                style: Math.max(0, basicScore - 15)
+              },
+              difficulty: 'BEGINNER',
+              difficultyMultiplier: 1.0,
+              metadata: {
+                totalSteps: currentScores.length,
+                validSteps: currentScores.filter(s => s > 0).length,
+                averageStepScore: basicScore
+              },
+              ppData: {
+                totalPP: basicPP,
+                breakdown: {
+                  basePP: basicPP,
+                  difficultyBonus: 0,
+                  improvementBonus: 0,
+                  streakBonus: 0,
+                  excellenceBonus: 0
+                },
+                metadata: {
+                  isPersonalBest: false,
+                  scoreImprovement: 0,
+                  difficultyLevel: 'BEGINNER'
+                }
+              }
+            };
+          }
+
+          setFinalScore(scoreData.finalScore);
+          setDetailedScoreData(scoreData);
+          setShowScoreDisplay(true);
+          
+        } catch (error) {
+          console.error("Error in score calculation:", error);
+          // Final fallback
+          const basicScore = calculateBasicScore(scoresRef.current);
+          setFinalScore(basicScore);
         }
       }, 500);
     }
   };
 
   const handleUploadMimic = async () => {
-    if (!recordedBlob)
+    if (!recordedBlob) {
       return alert("Record a video first!");
+    }
+
+    if (!detailedScoreData) {
+      return alert("Score calculation is not complete. Please try again.");
+    }
 
     setUploading(true);
 
-    // check session
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
+    try {
+      // Check session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-    if (sessionError || !session) {
+      if (sessionError || !session) {
+        setUploading(false);
+        navigate("/login");
+        return;
+      }
+
+      const userId = session.user.id;
+      
+      // Fetch user's profile to get username for display
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', userId)
+        .single();
+      
+      const playerName = profileData?.username || session.user.email;
+
+      // Upload video to storage
+      const fileName = `mimics/${uuidv4()}.webm`;
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("videos")
+        .upload(fileName, recordedBlob, { contentType: "video/webm" });
+
+      if (uploadError) {
+        throw new Error("Upload failed: " + uploadError.message);
+      }
+
+      const { data: publicData } = supabase.storage
+        .from("videos")
+        .getPublicUrl(uploadData.path);
+
+      // Prepare submission data
+      const submissionData = {
+        challengeId: id,
+        userId: userId,
+        playerName: playerName,
+        mimicUrl: publicData.publicUrl,
+        scoreData: detailedScoreData,
+        ppData: detailedScoreData.ppData
+      };
+
+      // Try to submit via backend API
+      try {
+        const result = await submitScore(submissionData);
+        console.log("Backend submission successful:", result);
+        
+        alert(`✅ Mimic uploaded successfully! Score: ${detailedScoreData.finalScore}% (+${detailedScoreData.ppData?.totalPP || 0} PP)`);
+        
+      } catch (backendError) {
+        console.warn("Backend submission failed, using direct database:", backendError);
+        
+        // Fallback to direct database insertion
+        const { error: dbError } = await supabase.from("scores").insert([
+          {
+            challenge_id: id,
+            player: playerName,
+            player_id: userId,
+            score: detailedScoreData.finalScore,
+            mimic_url: publicData.publicUrl,
+            accuracy_score: detailedScoreData.breakdown?.accuracy || 0,
+            consistency_score: detailedScoreData.breakdown?.consistency || 0,
+            timing_score: detailedScoreData.breakdown?.timing || 0,
+            style_score: detailedScoreData.breakdown?.style || 0,
+            difficulty_level: detailedScoreData.difficulty || 'BEGINNER',
+            difficulty_multiplier: detailedScoreData.difficultyMultiplier || 1.0,
+            total_steps: detailedScoreData.metadata?.totalSteps || 0,
+            valid_steps: detailedScoreData.metadata?.validSteps || 0,
+            pp_earned: detailedScoreData.ppData?.totalPP || 0,
+            is_personal_best: detailedScoreData.ppData?.metadata?.isPersonalBest || false
+          },
+        ]);
+
+        if (dbError) {
+          throw new Error("Error saving score: " + dbError.message);
+        }
+        
+        alert(`✅ Mimic uploaded successfully! Score: ${detailedScoreData.finalScore}%`);
+      }
+
+      // Reset for next recording
+      setFinalScore(null);
+      setDetailedScoreData(null);
+      setShowScoreDisplay(false);
+
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("Failed to upload mimic: " + error.message);
+    } finally {
       setUploading(false);
-      navigate("/login");
-      return;
     }
-
-    const userId = session.user.id;
-    
-    // Fetch user's profile to get username for display
-    const { data: profileData } = await supabase
-      .from('profiles')
-      .select('username')
-      .eq('id', userId)
-      .single();
-    
-    const playerName = profileData?.username || session.user.email;
-
-    // upload to storage
-    const fileName = `mimics/${uuidv4()}.webm`;
-    const { data, error: uploadError } = await supabase.storage
-      .from("videos")
-      .upload(fileName, recordedBlob, { contentType: "video/webm" });
-
-    if (uploadError) {
-      alert("Upload failed: " + uploadError.message);
-      setUploading(false);
-      return;
-    }
-
-    const { data: publicData } = supabase.storage
-      .from("videos")
-      .getPublicUrl(data.path);
-
-    // save score row - use calculated score from pose detection
-    const scoreToSave = finalScore !== null ? finalScore : 0;
-    console.log("Saving score to database:", scoreToSave);
-    
-    const { error: dbError } = await supabase.from("scores").insert([
-      {
-        challenge_id: id,
-        player: playerName,
-        player_id: userId,
-        score: scoreToSave,
-        mimic_url: publicData.publicUrl,
-      },
-    ]);
-
-    if (dbError) alert("Error saving score: " + dbError.message);
-    else alert(`✅ Mimic uploaded successfully! Score: ${scoreToSave}%`);
-
-    setUploading(false);
-    setFinalScore(null); // Reset for next recording
-  };
-
-  if (!challenge) return <p>Loading...</p>;
+  };  if (!challenge) return <p>Loading...</p>;
 
   return (
     <div className="challenge">
@@ -659,10 +769,30 @@ export default function ChallengePage() {
           {!recording ? (
             recordedUrl ? (
               <>
-                {finalScore !== null && (
+                {finalScore !== null && detailedScoreData && (
                   <div style={{ padding: '12px', background: 'rgba(59, 122, 59, 0.15)', borderRadius: '10px', color: '#d9f6d9', marginBottom: '12px', textAlign: 'center' }}>
                     <div style={{ fontSize: '0.9rem' }}>Your Score</div>
                     <div style={{ fontSize: '2rem', fontWeight: '800' }}>{finalScore}%</div>
+                    {detailedScoreData.ppData?.totalPP && (
+                      <div style={{ fontSize: '0.8rem', color: '#4ade80', marginTop: '4px' }}>
+                        +{detailedScoreData.ppData.totalPP} PP earned
+                      </div>
+                    )}
+                    <button 
+                      style={{ 
+                        background: 'transparent', 
+                        border: '1px solid #4ade80', 
+                        color: '#4ade80', 
+                        padding: '4px 12px', 
+                        borderRadius: '6px', 
+                        fontSize: '0.8rem', 
+                        marginTop: '8px',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => setShowScoreDisplay(true)}
+                    >
+                      View Details
+                    </button>
                   </div>
                 )}
                 <button className="btn" disabled={uploading} onClick={handleUploadMimic}>
@@ -723,6 +853,14 @@ export default function ChallengePage() {
       <div className="challenge__leaderboard">
         <Leaderboard challenge={challenge} />
       </div>
+
+      {/* Score Display Modal */}
+      <ScoreDisplay 
+        scoreData={detailedScoreData}
+        isVisible={showScoreDisplay}
+        showDetails={true}
+        onClose={() => setShowScoreDisplay(false)}
+      />
     </div>
   );
 }
