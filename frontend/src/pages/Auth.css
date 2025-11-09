@@ -3,17 +3,18 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f3f4f6;
+  background: linear-gradient(180deg, #000 0%, #000 100%);
   padding: 1rem;
 }
 
 .auth-card {
   width: 100%;
   max-width: 400px;
-  background: white;
+  background: #181c18;
   padding: 2rem;
   border-radius: 1rem;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 16px -1px rgba(0, 0, 0, 0.35), 0 2px 8px -1px rgba(0, 0, 0, 0.18);
+  border: 1px solid #243f00;
 }
 
 .auth-logo {
@@ -24,7 +25,7 @@
 .auth-brand {
   font-size: 2rem;
   font-weight: bold;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(90deg, #d9f6d9, #9dd49d, #d9f6d9);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -35,7 +36,7 @@
   font-weight: 600;
   text-align: center;
   margin-bottom: 1.5rem;
-  color: #111827;
+  color: #e6e6e6;
 }
 
 .auth-btn {
@@ -69,6 +70,16 @@
   background: #f9fafb;
 }
 
+.auth-btn-google {
+  background: #232323;
+  border: 1px solid #333;
+  color: #e6e6e6;
+  margin-bottom: 1rem;
+}
+.auth-btn-google:hover:not(:disabled) {
+  background: #181c18;
+}
+
 .google-icon {
   width: 1.25rem;
   height: 1.25rem;
@@ -81,6 +92,14 @@
 
 .auth-btn-primary:hover:not(:disabled) {
   background: #2563eb;
+}
+
+.auth-btn-primary {
+  background: #4a7d10;
+  color: #fff;
+}
+.auth-btn-primary:hover:not(:disabled) {
+  background: #243f00;
 }
 
 .auth-divider {
@@ -103,6 +122,13 @@
   padding: 0 0.5rem;
 }
 
+.auth-divider-line {
+  background: #243f00;
+}
+.auth-divider-text {
+  color: #8b938b;
+}
+
 .auth-form {
   display: flex;
   flex-direction: column;
@@ -119,6 +145,10 @@
   font-size: 0.875rem;
   font-weight: 500;
   color: #374151;
+}
+
+.auth-label {
+  color: #e6e6e6;
 }
 
 .auth-input {
@@ -142,6 +172,20 @@
   cursor: not-allowed;
 }
 
+.auth-input {
+  border: 1px solid #243f00;
+  background: #232323;
+  color: #e6e6e6;
+}
+.auth-input:focus {
+  border-color: #4a7d10;
+  box-shadow: 0 0 0 3px rgba(74, 125, 16, 0.1);
+}
+.auth-input:disabled {
+  background: #181c18;
+  color: #888;
+}
+
 .auth-error {
   padding: 0.75rem;
   background: #fee2e2;
@@ -156,6 +200,10 @@
   font-size: 0.875rem;
   color: #6b7280;
   margin-top: 0.5rem;
+}
+
+.auth-switch {
+  color: #8b938b;
 }
 
 .auth-link {
@@ -175,6 +223,10 @@
 .auth-link:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.auth-link {
+  color: #4a7d10;
 }
 
 @media (max-width: 640px) {

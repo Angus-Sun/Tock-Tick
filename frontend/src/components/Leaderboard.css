@@ -1,4 +1,4 @@
-.lb { margin-top: 16px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+.lb { margin-top: 16px; font-family: 'Momo Trust Display', system-ui, -apple-system, sans-serif; }
 .lb__title { 
   margin: 0 0 16px; 
   font-size: 1.4rem; 
@@ -157,7 +157,7 @@
   border-radius: 8px; 
   padding: 4px 10px; 
   margin-right: 8px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; 
+  font-family: 'Momo Trust Display', system-ui, -apple-system, sans-serif; 
   font-size: 0.9rem;
   color: #9dd49d;
   font-weight: 600;

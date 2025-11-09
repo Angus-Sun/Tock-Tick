@@ -24,19 +24,34 @@
   justify-content: space-between;
 }
 
-.logo {
-  font-size: 1.4rem;
-  font-weight: 700;
-  letter-spacing: .5px;
+/* Logo + text brand wrapper */
+.logo-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   text-decoration: none;
-  background: linear-gradient(90deg,#ffffff,#cfe9cf 55%,#8ACF8A);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
   position: relative;
   transition: transform .35s ease;
 }
-.spin-on-hover:hover { transform: rotate(-3deg) scale(1.04); }
+.logo-text {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: .5px;
+  background: linear-gradient(90deg,#ffffff,#cfe9cf 55%,#8ACF8A);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.nav-logo-img {
+  height: 40px;
+  width: 40px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.35));
+  transition: transform .4s ease;
+}
+.logo-brand:hover .nav-logo-img { transform: scale(1.08) rotate(-4deg); }
+.logo-brand:hover .logo-text { filter: brightness(1.15); }
+.spin-on-hover:hover { transform: rotate(-2deg) scale(1.02); }
 
 .nav-links { display: flex; align-items: center; gap: 4px; }
 
@@ -103,7 +118,8 @@
 @media (max-width: 820px) {
   .nav-container { padding: 0 16px; height: 56px; }
   .nav-link { padding: 6px 10px; font-size: .8rem; }
-  .logo { font-size: 1.15rem; }
+  .logo-text { font-size: 1.05rem; }
+  .nav-logo-img { height: 34px; width: 34px; }
   .user-info { display: none; }
 }
 

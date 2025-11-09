@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { supabase } from "../utils/supabaseClient";
 import { useUser } from "../hooks/useUser";
 import "./NavBar.css";
+import Logo from "./Logo.jsx";
 
 export default function NavBar() {
   const { user, profile, refreshProfile } = useUser();
@@ -27,8 +28,9 @@ export default function NavBar() {
   return (
     <nav className="navbar glass fade-in">
       <div className="nav-container">
-        <Link to="/" className="logo spin-on-hover">
-          TokTik
+        <Link to="/" className="logo-brand spin-on-hover" aria-label="MatchA Dance home">
+          <Logo />
+          <span className="logo-text">MatchA Dance</span>
         </Link>
         <div className="nav-links">
           {navItems.map(item => (
