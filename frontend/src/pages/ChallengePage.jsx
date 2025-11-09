@@ -106,19 +106,6 @@ export default function ChallengePage() {
           }
         }
       });
-      
-      // Draw landmark points
-      ctx.fillStyle = color;
-      landmarks.forEach((landmark) => {
-        if (landmark) {
-          const vis = landmark.visibility !== undefined ? landmark.visibility : 1;
-          if (vis > 0.3) {
-            ctx.beginPath();
-            ctx.arc(landmark.x * canvas.width, landmark.y * canvas.height, dotSize, 0, 2 * Math.PI);
-            ctx.fill();
-          }
-        }
-      });
     };
 
     const drawPose = () => {
@@ -169,40 +156,8 @@ export default function ChallengePage() {
           } catch (e) {}
         }
         
-        const referencePose = referenceSequence[currentStepIndex];
-        
-        if (referencePose) {
-          // Draw reference skeleton in cyan with slightly thicker lines
-          drawSkeleton(referencePose, '#00d9ff', 4, 6);
-          
-          // Add a label for reference
-          ctx.font = 'bold 14px Arial';
-          ctx.fillStyle = '#00d9ff';
-          ctx.fillText('TARGET', 10, 25);
-        }
-      }
-      
-      // Draw current pose (green) - your actual pose
-      const currentPose = window.__currentPoseForCanvas;
-      if (currentPose && Array.isArray(currentPose) && currentPose.length > 0) {
-        drawSkeleton(currentPose, '#00ff00', 3, 5);
-        
-        // Add a label for current pose
-        ctx.font = 'bold 14px Arial';
-        ctx.fillStyle = '#00ff00';
-        ctx.fillText('YOU', 10, 45);
-      }
-      
-      // Show step indicator
-      if (referenceSequence && referenceSequence.length > 0) {
-        ctx.font = 'bold 16px Arial';
-        ctx.fillStyle = '#ffffff';
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 3;
-        const stepText = `Step ${currentStepIndex + 1}/${referenceSequence.length}`;
-        const textWidth = ctx.measureText(stepText).width;
-        ctx.strokeText(stepText, canvas.width - textWidth - 10, 25);
-        ctx.fillText(stepText, canvas.width - textWidth - 10, 25);
+        // Reference pose and current pose detection still running in background
+        // Visual skeleton overlays removed per user request
       }
       
       animationId = requestAnimationFrame(drawPose);
@@ -748,7 +703,7 @@ export default function ChallengePage() {
               }}></span>
               <span style={{ color: '#9ca3af' }}>
                 {challenge?.reference_sequence && challenge.reference_sequence.length > 0 
-                  ? `Pose detection ready (${challenge.reference_sequence.length} reference poses)`
+                  ? 'Pose detection ready'
                   : 'No reference poses available - scoring disabled'}
               </span>
             </div>
