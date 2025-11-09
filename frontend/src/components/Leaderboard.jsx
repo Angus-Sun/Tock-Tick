@@ -4,13 +4,17 @@ import "./Leaderboard.css";
 
 export default function Leaderboard({ challenge }) {
   const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(null); // { player, score, mimic_url }
   const originalRef = useRef(null);
   const competitorRef = useRef(null);
 
   useEffect(() => {
-    if (!challenge?.id) return;
+    if (!challenge?.id) {
+      setLoading(false);
+      return;
+    }
     fetchRows();
 
     // Realtime refresh when a new score inserts for this challenge
@@ -28,15 +32,18 @@ export default function Leaderboard({ challenge }) {
   }, [challenge?.id]);
 
   const fetchRows = async () => {
+    setLoading(true);
     const { data, error } = await supabase
       .from("scores")
-      .select("id, player, score, mimic_url, created_at")
+      .select("id, player, score, mimic_url, created_at, pp_earned")
       .eq("challenge_id", challenge.id)
+      .order("pp_earned", { ascending: false })
       .order("score", { ascending: false })
       .limit(10);
 
     if (!error) setRows(data || []);
     else console.error(error);
+    setLoading(false);
   };
 
   const medal = (i) => (i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1);

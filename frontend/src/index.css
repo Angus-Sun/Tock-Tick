@@ -32,6 +32,7 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background-color: #0d0d0d;
+  overflow-y: scroll; /* Force scrollbar to always show */
 }
 
 html::-webkit-scrollbar,
