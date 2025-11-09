@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../utils/supabaseClient';
+import { createDefaultProfile } from '../utils/userUtils';
 
 // Shape:
 // user: Supabase auth user object or null
@@ -41,12 +42,25 @@ export function UserProvider({ children }) {
       return;
     }
     setLoadingProfile(true);
+    
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
       .eq('id', user.id)
       .single();
-    if (!error) setProfile(data);
+    
+    if (error && error.code === 'PGRST116') {
+      // Profile doesn't exist, create a default one
+      const { data: newProfile, error: createError } = await createDefaultProfile(supabase, user.id);
+      if (!createError && newProfile) {
+        setProfile(newProfile);
+      } else {
+        console.error("Failed to create default profile:", createError);
+      }
+    } else if (!error) {
+      setProfile(data);
+    }
+    
     setLoadingProfile(false);
   };
 

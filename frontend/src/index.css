@@ -1,6 +1,6 @@
 :root {
-  /* Global font set to Times New Roman — browser will use this or fall back to Times/serif */
-  font-family: 'Times New Roman', Times, serif;
+  /* Global font set to Momo Trust Display */
+  font-family: 'Momo Trust Display', system-ui, -apple-system, sans-serif;
   /* Increase base font size for better readability */
   font-size: 18px;
   line-height: 1.5;

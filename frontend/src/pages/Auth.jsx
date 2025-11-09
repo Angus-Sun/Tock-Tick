@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../utils/supabaseClient";
 import { useNavigate, Link } from "react-router-dom";
+import { createDefaultProfile } from "../utils/userUtils";
 import "./Auth.css";
 
 export default function Auth() {
@@ -43,6 +44,15 @@ export default function Auth() {
         result = await supabase.auth.signInWithPassword({ email, password });
       } else {
         result = await supabase.auth.signUp({ email, password });
+        
+        // If signup successful and user is confirmed, create default profile
+        if (result.data?.user && !result.error) {
+          const { data: profileResult, error: profileError } = await createDefaultProfile(supabase, result.data.user.id);
+          if (profileError) {
+            console.error("Failed to create default profile:", profileError);
+            // Don't fail the signup process if profile creation fails
+          }
+        }
       }
 
       if (result.error) {
@@ -83,7 +93,7 @@ export default function Auth() {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-logo">
-          <h1 className="auth-brand">Matcha Dance</h1>
+          <h1 className="auth-brand">MatchA Dance</h1>
         </div>
         
         <h2 className="auth-title">

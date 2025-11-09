@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../utils/supabaseClient.js";
 import { v4 as uuidv4 } from "uuid";
 import { FaVideo } from "react-icons/fa"; // Video icon from React Icons
+import processVideoFile from "../utils/videotoReference.js";
 import "./UploadPage.css";
 
 export default function UploadPage() {
@@ -10,6 +11,7 @@ export default function UploadPage() {
   const [file, setFile] = useState(null);
   const [title, setTitle] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [processingPoses, setProcessingPoses] = useState(false);
   const [successUrl, setSuccessUrl] = useState("");
   const [dragActive, setDragActive] = useState(false);
 
@@ -88,19 +90,43 @@ export default function UploadPage() {
       .from("videos")
       .getPublicUrl(data.path);
 
-    // Insert into challenges table
+    // Process video to generate reference poses
+    setProcessingPoses(true);
+    let referenceSequence = null;
+    let stepTimes = null;
+    let suggestedAutoSkip = null;
+    
+    try {
+      console.log("Processing video to extract reference poses...");
+      const result = await processVideoFile(file, { fixedIntervalSeconds: 0.5 });
+      referenceSequence = result.referenceSequence;
+      stepTimes = result.stepTimes;
+      suggestedAutoSkip = result.suggestedAutoSkip;
+      console.log(`✅ Generated ${referenceSequence.length} reference poses`);
+    } catch (err) {
+      console.error("Failed to process video for reference poses:", err);
+      alert("⚠️ Video uploaded but pose detection data could not be generated. The challenge will still work but scoring may not be available.");
+    } finally {
+      setProcessingPoses(false);
+    }
+
+    // Insert into challenges table with reference data
     const { error: dbError } = await supabase.from("challenges").insert([ 
       { 
         title,
         uploader: uploaderName, 
         uploader_id: userId, 
         video_url: publicData.publicUrl,
+        reference_sequence: referenceSequence,
+        step_times: stepTimes,
+        suggested_auto_skip: suggestedAutoSkip,
       },
     ]);
 
     if (dbError) alert("Error saving challenge: " + dbError.message);
     else {
-      alert("✅ Dance challenge uploaded successfully!");
+      const poseMsg = referenceSequence ? ` with ${referenceSequence.length} reference poses` : '';
+      alert(`✅ Dance challenge uploaded successfully${poseMsg}!`);
       navigate("/");
     }
 
@@ -142,7 +168,7 @@ export default function UploadPage() {
           </label>
           <button 
             type="button"
-            disabled={uploading} 
+            disabled={uploading || processingPoses} 
             onClick={(e) => {
               e.stopPropagation();
               if (!file || !title) {
@@ -158,8 +184,13 @@ export default function UploadPage() {
             }}
             className="upload-button-inside"
           >
-            {uploading ? "Uploading..." : "Upload Video"}
+            {processingPoses ? "⏳ Processing poses..." : uploading ? "⬆️ Uploading..." : "Upload Video"}
           </button>
+          {processingPoses && (
+            <div style={{ marginTop: '12px', textAlign: 'center', color: '#9dd49d', fontSize: '0.9rem' }}>
+              🔍 Analyzing video to extract reference poses for scoring...
+            </div>
+          )}
         </div>
       </div>
     </div>

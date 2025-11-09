@@ -28,9 +28,9 @@ export default function NavBar() {
   return (
     <nav className="navbar glass fade-in">
       <div className="nav-container">
-        <Link to="/" className="logo-brand spin-on-hover" aria-label="Matcha Dance home">
+        <Link to="/" className="logo-brand spin-on-hover" aria-label="MatchA Dance home">
           <Logo />
-          <span className="logo-text">Matcha Dance</span>
+          <span className="logo-text">MatchA Dance</span>
         </Link>
         <div className="nav-links">
           {navItems.map(item => (

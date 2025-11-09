@@ -37,7 +37,7 @@ export default function Home() {
   return (
     <div className="home-page">
       <header className="home-hero">
-  <h1 className="home-title">Matcha Dance</h1>
+  <h1 className="home-title">MatchA Dance</h1>
         <p className="home-sub">Discover community challenges & prove your mimic skills.</p>
         <div className="home-actions">
           <Link to="/upload" className="hero-btn accent">Upload</Link>
