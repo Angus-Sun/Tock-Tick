@@ -242,12 +242,54 @@ export default function ProfilePage() {
 
   // Guard: if not viewing other and auth user hasn't loaded yet, show loading
   if (!viewingOther && !user) {
-    return null;
+    return (
+      <div className="profile-container">
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column',
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          minHeight: '60vh',
+          gap: '20px'
+        }}>
+          <div style={{ 
+            width: '60px', 
+            height: '60px', 
+            border: '4px solid rgba(74, 222, 128, 0.2)',
+            borderTop: '4px solid #4ade80',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite'
+          }}></div>
+          <p style={{ color: '#9ca3af', fontSize: '1.1rem' }}>Loading profile...</p>
+        </div>
+      </div>
+    );
   }
 
   // Don't render until stats are loaded
   if (statsLoading) {
-    return null;
+    return (
+      <div className="profile-container">
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column',
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          minHeight: '60vh',
+          gap: '20px'
+        }}>
+          <div style={{ 
+            width: '60px', 
+            height: '60px', 
+            border: '4px solid rgba(74, 222, 128, 0.2)',
+            borderTop: '4px solid #4ade80',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite'
+          }}></div>
+          <p style={{ color: '#9ca3af', fontSize: '1.1rem' }}>Loading stats...</p>
+        </div>
+      </div>
+    );
   }
   return (
     <div className="profile-container">

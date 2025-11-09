@@ -192,7 +192,28 @@ export default function GlobalLeaderboard() {
   };
 
   if (loading || userLoading) {
-    return null;
+    return (
+      <div className="global-leaderboard">
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column',
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          minHeight: '400px',
+          gap: '20px'
+        }}>
+          <div style={{ 
+            width: '60px', 
+            height: '60px', 
+            border: '4px solid rgba(74, 222, 128, 0.2)',
+            borderTop: '4px solid #4ade80',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite'
+          }}></div>
+          <p style={{ color: '#9ca3af', fontSize: '1.1rem' }}>Loading leaderboard...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
