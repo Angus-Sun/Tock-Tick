@@ -72,6 +72,7 @@ export default function Leaderboard({ challenge }) {
               <th className="w-rank">Rank</th>
               <th>Player</th>
               <th>Score</th>
+              <th className="w-pp">PP</th>
               <th className="w-watch">Watch</th>
             </tr>
           </thead>
@@ -83,6 +84,13 @@ export default function Leaderboard({ challenge }) {
                 </td>
                 <td>{r.player}</td>
                 <td>{(r.score ?? 0).toFixed(1)}%</td>
+                <td className="lb__pp-cell">
+                  {r.pp_earned ? (
+                    <span className="lb__pp-badge">+{r.pp_earned}</span>
+                  ) : (
+                    <span className="lb__pp-none">-</span>
+                  )}
+                </td>
                 <td>
                   <button className="lb__watchBtn" onClick={() => openModal(r)}>
                     ▶️ Watch Duel
@@ -92,7 +100,7 @@ export default function Leaderboard({ challenge }) {
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={4} className="lb__empty">
+                <td colSpan={5} className="lb__empty">
                   No entries yet.
                 </td>
               </tr>

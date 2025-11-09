@@ -189,15 +189,119 @@
   text-align: left;
 }
 
+.profile-stat.highlight {
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  border-radius: 8px;
+  padding: 8px;
+  text-align: center;
+}
+
 .profile-stat-number {
   font-size: 18px;
   font-weight: bold;
   color: #d9f6d9;
 }
 
+.profile-stat.highlight .profile-stat-number {
+  color: #4ade80;
+}
+
 .profile-stat-label {
   font-size: 14px;
   color: #8b938b;
+}
+
+/* Profile Ranking Section */
+.profile-ranking {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 12px 20px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid #2a2a2a;
+  border-radius: 12px;
+  flex-wrap: wrap;
+}
+
+.rank-tier {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tier-icon {
+  font-size: 1.2rem;
+}
+
+.tier-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.rank-position {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.rank-text {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #d9f6d9;
+}
+
+.rank-percentile {
+  font-size: 0.75rem;
+  color: #9dd49d;
+}
+
+.streak-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 165, 0, 0.1);
+  border: 1px solid rgba(255, 165, 0, 0.3);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+
+.streak-icon {
+  font-size: 1rem;
+}
+
+.streak-text {
+  font-size: 0.8rem;
+  color: #FFA500;
+  font-weight: 600;
+}
+
+.profile-stats-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 16px;
+  color: #9dd49d;
+  font-size: 0.9rem;
+}
+
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #2a2a2a;
+  border-top: 2px solid #4ade80;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 .profile-tabs {

@@ -100,6 +100,7 @@ export default function Home() {
           ))}
         </div>
       </main>
+
       <footer className="site-footer animate-on-scroll">
         <div className="footer-inner">
           <div className="brand">MatchA Dance</div>
