@@ -4,6 +4,7 @@ import "./Leaderboard.css";
 
 export default function Leaderboard({ challenge }) {
   const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(null); // { player, score, mimic_url }
   const originalRef = useRef(null);
@@ -28,6 +29,7 @@ export default function Leaderboard({ challenge }) {
   }, [challenge?.id]);
 
   const fetchRows = async () => {
+    setLoading(true);
     const { data, error } = await supabase
       .from("scores")
       .select("id, player, score, mimic_url, created_at")
@@ -37,6 +39,7 @@ export default function Leaderboard({ challenge }) {
 
     if (!error) setRows(data || []);
     else console.error(error);
+    setLoading(false);
   };
 
   const medal = (i) => (i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : i + 1);
@@ -60,6 +63,10 @@ export default function Leaderboard({ challenge }) {
       console.warn("Sync play failed (autoplay policy?):", e);
     }
   };
+
+  if (loading) {
+    return null;
+  }
 
   return (
     <div className="lb">

@@ -21,6 +21,8 @@ export default function ProfilePage() {
   const [ranking, setRanking] = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [profileUser, setProfileUser] = useState(null);
+  const [uploadsLoading, setUploadsLoading] = useState(true);
+  const [mimicsLoading, setMimicsLoading] = useState(true);
 
   // Helper functions for tier display
   const getTierIcon = (tier) => {
@@ -47,6 +49,15 @@ export default function ProfilePage() {
       'NOVICE': '#FECA57'
     };
     return colors[tier] || '#FECA57';
+  };
+
+  const getOrdinalSuffix = (num) => {
+    const j = num % 10;
+    const k = num % 100;
+    if (j === 1 && k !== 11) return num + "st";
+    if (j === 2 && k !== 12) return num + "nd";
+    if (j === 3 && k !== 13) return num + "rd";
+    return num + "th";
   };
 
   async function handleDelete(id, table) {
@@ -107,14 +118,17 @@ export default function ProfilePage() {
       { id: user.id, username, updated_at: new Date().toISOString() }
     ], { onConflict: 'id' }).select().single();
     
-    if (error) alert(error.message);
-    else {
-      alert('Saved');
+    if (error) {
+      alert(error.message);
+    } else {
       setProfile(data);
+      setUsername(data.username);
+      setIsEditing(false);
     }
   };
 
   const fetchUploads = async () => {
+    setUploadsLoading(true);
     const { data, error } = await supabase
       .from('challenges')
       .select('*')
@@ -122,9 +136,11 @@ export default function ProfilePage() {
       .order('created_at', { ascending: false });
     if (error) console.error(error);
     else setUploads(data || []);
+    setUploadsLoading(false);
   };
 
   const fetchMimics = async () => {
+    setMimicsLoading(true);
     const { data, error } = await supabase
       .from('scores')
       .select('*, challenges(*)')
@@ -132,6 +148,7 @@ export default function ProfilePage() {
       .order('created_at', { ascending: false });
     if (error) console.error(error);
     else setMimics(data || []);
+    setMimicsLoading(false);
   };
 
   const fetchUserStats = async () => {
@@ -197,11 +214,12 @@ export default function ProfilePage() {
 
   // Guard: if not viewing other and auth user hasn't loaded yet, show loading
   if (!viewingOther && !user) {
-    return (
-      <div className="profile-container">
-        <div className="profile-loading">Loading profile...</div>
-      </div>
-    );
+    return null;
+  }
+
+  // Don't render until stats are loaded
+  if (statsLoading) {
+    return null;
   }
   return (
     <div className="profile-container">
@@ -251,10 +269,6 @@ export default function ProfilePage() {
                 <div className="profile-stat-number">{userStats.total_pp}</div>
                 <div className="profile-stat-label">Total PP</div>
               </div>
-              <div className="profile-stat">
-                <div className="profile-stat-number">{userStats.average_score?.toFixed(1) || '0.0'}%</div>
-                <div className="profile-stat-label">Avg Score</div>
-              </div>
             </>
           )}
         </div>
@@ -271,7 +285,7 @@ export default function ProfilePage() {
             {ranking && (
               <div className="rank-position">
                 <span className="rank-text">#{ranking.rank_position}</span>
-                <span className="rank-percentile">Top {ranking.percentile}%</span>
+                <span className="rank-percentile">Top {getOrdinalSuffix(ranking.percentile)} percentile</span>
               </div>
             )}
             {userStats.current_streak > 0 && (
@@ -280,13 +294,6 @@ export default function ProfilePage() {
                 <span className="streak-text">{userStats.current_streak} streak</span>
               </div>
             )}
-          </div>
-        )}
-
-        {statsLoading && (
-          <div className="profile-stats-loading">
-            <div className="loading-spinner"></div>
-            <span>Loading stats...</span>
           </div>
         )}
         </div>
@@ -304,7 +311,12 @@ export default function ProfilePage() {
 
         {activeTab === 'uploads' && (
           <div>
-            {uploads.length === 0 ? (
+            {uploadsLoading ? (
+              <div className="profile-loading">
+                <div className="loading-spinner"></div>
+                <span>Loading challenges...</span>
+              </div>
+            ) : uploads.length === 0 ? (
               <div className="profile-empty-state">
                 <div className="profile-empty-icon">📹</div>
                 <div className="profile-empty-title">No challenges yet</div>
@@ -342,7 +354,12 @@ export default function ProfilePage() {
 
         {activeTab === 'mimics' && (
           <div>
-            {mimics.length === 0 ? (
+            {mimicsLoading ? (
+              <div className="profile-loading">
+                <div className="loading-spinner"></div>
+                <span>Loading mimics...</span>
+              </div>
+            ) : mimics.length === 0 ? (
               <div className="profile-empty-state">
                 <div className="profile-empty-icon">🎯</div>
                 <div className="profile-empty-title">No mimics yet</div>

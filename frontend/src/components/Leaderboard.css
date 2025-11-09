@@ -1,4 +1,22 @@
-.lb { margin-top: 16px; font-family: 'Momo Trust Display', system-ui, -apple-system, sans-serif; }
+.lb { 
+  margin-top: 16px; 
+  font-family: 'Momo Trust Display', system-ui, -apple-system, sans-serif;
+  opacity: 0;
+  visibility: hidden;
+  animation: fadeIn 0.5s ease 0.2s forwards;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    visibility: hidden;
+  }
+  to {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
 .lb__title { 
   margin: 0 0 16px; 
   font-size: 1.4rem; 
