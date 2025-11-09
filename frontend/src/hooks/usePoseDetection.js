@@ -13,16 +13,14 @@ import { poseSimilarity, perJointAngleSimilarity, shoulderSpreadSimilarity } fro
  */
 export default function usePoseDetection({
 	videoRef,
-	referenceSequence,
+	referenceSequence = [],
 	threshold = 0.75,
 	hold = 4,
 	onResult,
 	autoSkip = 0, // seconds to wait before auto-advancing if user doesn't match (0 = disabled)
-	disableAdvancement = false, // when true, don't auto-advance steps (external controller manages steps)
 } = {}) {
 	const poseRef = useRef(null);
 	const cameraRef = useRef(null);
-	const lastPoseRef = useRef(null);
 	const framesAboveRef = useRef(0);
 	const stepRef = useRef(0);
 	const perStepBestRef = useRef([]);
@@ -34,6 +32,46 @@ export default function usePoseDetection({
 	const [currentStep, setCurrentStep] = useState(0);
 	const [perStepScores, setPerStepScores] = useState([]);
 	const [lastPerJointSims, setLastPerJointSims] = useState(null);
+	// track previous landmarks to detect motion; penalize low-motion (sitting still)
+	const lastLandmarksRef = useRef(null);
+
+	// motion penalty config
+	// motionThreshold: normalized motion (relative to shoulder width) at which no penalty applies
+	// minMotionScale: minimum multiplier applied to similarity when motion==0 (e.g., 0.5 halves score)
+	const MOTION_CONFIG = {
+		motionThreshold: 0.02,
+		minMotionScale: 0.5,
+		// which landmark indices to consider for motion energy
+		motionIndices: [11, 12, 13, 14, 15, 16, 23, 24, 25, 26],
+	};
+
+	const getTorsoWidth = (landmarks) => {
+		if (!landmarks || !landmarks[11] || !landmarks[12]) return 0;
+		const a = landmarks[11];
+		const b = landmarks[12];
+		const dx = a.x - b.x;
+		const dy = a.y - b.y;
+		return Math.sqrt(dx * dx + dy * dy) || 0;
+	};
+
+	const computeMotionMetric = (curr, prev) => {
+		if (!curr || !prev) return 0;
+		const indices = MOTION_CONFIG.motionIndices;
+		const torso = getTorsoWidth(curr) || getTorsoWidth(prev) || 1;
+		let sum = 0;
+		let count = 0;
+		for (const idx of indices) {
+			const c = curr[idx];
+			const p = prev[idx];
+			if (!c || !p) continue;
+			const dx = c.x - p.x;
+			const dy = c.y - p.y;
+			const d = Math.sqrt(dx * dx + dy * dy);
+			sum += d / torso; // normalize by torso width
+			count += 1;
+		}
+		return count ? sum / count : 0;
+	};
 
 	const reset = useCallback(() => {
 		framesAboveRef.current = 0;
@@ -42,8 +80,6 @@ export default function usePoseDetection({
 		setCurrentScore(0);
 		perStepBestRef.current = [];
 		setPerStepScores([]);
-		// Start the step timer so autoSkip timing begins from reset
-		try { stepStartRef.current = Date.now(); } catch (e) {}
 	}, []);
 
 	// when referenceSequence changes, reset per-step tracking
@@ -120,122 +156,69 @@ export default function usePoseDetection({
 					const targetIndex = Math.min(stepRef.current, referenceSequence.length - 1);
 					const target = referenceSequence[targetIndex];
 
-					// Angle-based per-joint similarity - CAMERA ANGLE & DISTANCE INDEPENDENT!
+					// Angle-based per-joint similarity (preferred)
 							let sim = 0;
 							try {
-								const sims = perJointAngleSimilarity(landmarks, target, { angleTolerance: 30, distTolerance: 0.8, visibilityThreshold: 0.2 });
+								const sims = perJointAngleSimilarity(landmarks, target, { angleTolerance: 35, distTolerance: 0.75, visibilityThreshold: 0.2 });
 								// expose last per-joint sims for debugging/UI
 								try { setLastPerJointSims(sims); } catch (e) { }
-								// Balanced weighting - all major joints matter equally
+								// Weigh joints: give more importance to shoulders (arms) while still using hips/knees
+								// Includes an explicit shoulder-spread term to capture arms-out vs arms-down differences
 								const weightMap = {
-									// legs - important for dance
-									25: 0.12, // left_knee
-									26: 0.12, // right_knee
-									27: 0.08, // left_ankle
-									28: 0.08, // right_ankle
-									// hips - body positioning
+									25: 0.10, // left_knee
+									26: 0.10, // right_knee
 									23: 0.10, // left_hip
 									24: 0.10, // right_hip
-									// arms - expressive movement
-									11: 0.12, // left_shoulder
-									12: 0.12, // right_shoulder
-									13: 0.11, // left_elbow
-									14: 0.11, // right_elbow
-									15: 0.09, // left_wrist
-									16: 0.09, // right_wrist
+									11: 0.20, // left_shoulder  (increased)
+									12: 0.20, // right_shoulder (increased)
+									13: 0.10, // left_elbow
+									14: 0.10, // right_elbow
 								};
-								const shoulderSpreadWeight = 0.06; // reduced from 0.15 - less strict on exact arm width
+								const shoulderSpreadWeight = 0.15; // extra term (0..1 weight) for shoulder width similarity
 								let sum = 0;
 								let wsum = 0;
 								for (const idxStr of Object.keys(weightMap)) {
 									const idx = Number(idxStr);
 									const w = weightMap[idx];
-									// fallback to neutral 0.5 when sim missing (was 0.1 - too harsh)
-									const s = (sims && sims[idx] != null) ? sims[idx] : 0.5;
+									// fallback to conservative 0.2 when sim missing
+									const s = (sims && sims[idx] != null) ? sims[idx] : 0.2;
 									sum += s * w;
 									wsum += w;
 								}
-								// shoulder spread similarity - very tolerant since camera angle affects this
-								const shoulderSpreadSim = shoulderSpreadSimilarity(landmarks, target, 1.0); // increased tolerance
+								// shoulder spread similarity (distance between left and right shoulder after normalization)
+								const shoulderSpreadSim = shoulderSpreadSimilarity(landmarks, target, 0.6);
 								sum += shoulderSpreadSim * shoulderSpreadWeight;
 								wsum += shoulderSpreadWeight;
 								sim = wsum ? sum / wsum : 0;
 
-								// Motion penalty: detect if user is sitting still vs actually dancing
-								try {
-									const prevTarget = referenceSequence && referenceSequence[Math.max(0, stepRef.current - 1)];
-									let refMotion = 0;
-									if (prevTarget && Array.isArray(prevTarget) && Array.isArray(target) && prevTarget.length === target.length) {
-										let s = 0;
-										let cnt = 0;
-										for (let i = 0; i < target.length; i++) {
-											const a = prevTarget[i];
-											const b = target[i];
-											if (!a || !b) continue;
-											s += Math.hypot(a.x - b.x, a.y - b.y, (a.z || 0) - (b.z || 0));
-											cnt++;
-										}
-										refMotion = cnt ? s / cnt : 0;
-									}
-
-								let userMotion = 0;
-								if (lastPoseRef.current && Array.isArray(lastPoseRef.current) && Array.isArray(landmarks) && lastPoseRef.current.length === landmarks.length) {
-									let s2 = 0, c2 = 0;
-									for (let i = 0; i < landmarks.length; i++) {
-										const a = lastPoseRef.current[i];
-										const b = landmarks[i];
-										if (!a || !b) continue;
-										s2 += Math.hypot(a.x - b.x, a.y - b.y, (a.z || 0) - (b.z || 0));
-										c2++;
-									}
-									userMotion = c2 ? s2 / c2 : 0;
-								}
-
-								// Aggressive stillness detection: if user is barely moving, heavily penalize
-								// UNLESS they match the pose very well (>0.7)
-								if (userMotion < 0.002) {
-									// User is essentially frozen
-									if (sim < 0.7) {
-										// Frozen in wrong pose = very bad
-										sim *= 0.05; // 95% penalty
-									} else {
-										// Frozen but in correct pose = still penalize but less harshly
-										sim *= 0.5; // 50% penalty
-									}
-								} else if (userMotion < 0.005) {
-									// User is moving very little
-									if (sim < 0.6) {
-										// Low motion + wrong pose = bad
-										sim *= 0.2; // 80% penalty
-									} else if (refMotion > 0.02) {
-										// Reference is moving but user isn't keeping up
-										sim *= 0.6; // 40% penalty
-									}
-								} else if (refMotion > 0.03 && userMotion < refMotion * 0.3) {
-									// Reference is moving significantly but user is too slow
-									sim *= 0.4; // 60% penalty
-								}
-								} catch (e) {}
-
-								// update per-step best for the current step
-								if (typeof stepRef.current === 'number') {
-									const idx = stepRef.current;
-									perStepBestRef.current[idx] = Math.max(perStepBestRef.current[idx] || 0, sim);
-									setPerStepScores(perStepBestRef.current.slice());
-								}
+								// (per-step best will be updated after motion penalty is applied)
 							} catch (e) {
 								// fallback to flattened-pose similarity
 								sim = poseSimilarity(landmarks, target);
 							}
-				const score = Math.round(sim * 100);
+
+				// compute motion and apply motion-based penalty (penalize sitting still)
+				const prevLandmarks = lastLandmarksRef.current;
+				const motionMetric = computeMotionMetric(landmarks, prevLandmarks);
+				const motionFactor = Math.max(0, Math.min(1, motionMetric / MOTION_CONFIG.motionThreshold));
+				const motionScale = MOTION_CONFIG.minMotionScale + (1 - MOTION_CONFIG.minMotionScale) * motionFactor;
+
+				// apply motionScale to similarity
+				const penalizedSim = sim * motionScale;
+
+				// update per-step best for the current step using penalized similarity
+				if (typeof stepRef.current === 'number') {
+					const idx = stepRef.current;
+					perStepBestRef.current[idx] = Math.max(perStepBestRef.current[idx] || 0, penalizedSim);
+					setPerStepScores(perStepBestRef.current.slice());
+				}
+
+				const score = Math.round(penalizedSim * 100);
 				setCurrentScore(score);
 
-							if (sim >= threshold) framesAboveRef.current += 1; else framesAboveRef.current = 0;
+							if (penalizedSim >= threshold) framesAboveRef.current += 1; else framesAboveRef.current = 0;
 
-					// If autoSkip timing is enabled, prefer time-based advancement instead of
-					// requiring the user to hit accuracy thresholds. Otherwise, allow
-					// sim/hold-based advancement as before.
-					if (!disableAdvancement && (!autoSkip || autoSkip <= 0) && framesAboveRef.current >= hold) {
+					if (framesAboveRef.current >= hold) {
 				framesAboveRef.current = 0;
 				// advance step (cap at last index). If we're at the final step, stay there.
 						if (referenceSequence && referenceSequence.length > 0) {
@@ -250,13 +233,13 @@ export default function usePoseDetection({
 
 					// auto-skip: if configured and the user hasn't matched within the timeout, advance
 					try {
-						if (!disableAdvancement && autoSkip && typeof autoSkip === 'number' && autoSkip > 0) {
+						if (autoSkip && typeof autoSkip === 'number' && autoSkip > 0) {
 							const now = Date.now();
 							const elapsed = now - (stepStartRef.current || 0);
 							if (elapsed >= Math.round(autoSkip * 1000)) {
-								// record current best for this step then advance
+								// record current best for this step then advance (use penalized similarity)
 								const completedIdx = stepRef.current;
-								perStepBestRef.current[completedIdx] = Math.max(perStepBestRef.current[completedIdx] || 0, sim);
+								perStepBestRef.current[completedIdx] = Math.max(perStepBestRef.current[completedIdx] || 0, penalizedSim);
 								setPerStepScores(perStepBestRef.current.slice());
 								if (referenceSequence && referenceSequence.length > 0) {
 									stepRef.current = Math.min(stepRef.current + 1, referenceSequence.length - 1);
@@ -270,16 +253,14 @@ export default function usePoseDetection({
 						}
 					} catch (e) {}
 
-				if (typeof onResult === 'function') onResult({ pose: landmarks, score, step: stepRef.current, perJoint: lastPerJointSims });
+				// expose last landmarks for next-frame motion computation
+				try { lastLandmarksRef.current = landmarks; } catch (e) {}
 
-				// update lastPoseRef for motion comparisons on the next frame
-				try {
-					lastPoseRef.current = landmarks && Array.isArray(landmarks) ? landmarks.map(l => ({ x: l.x, y: l.y, z: l.z })) : null;
-				} catch (e) {}
+				if (typeof onResult === 'function') onResult({ pose: landmarks, score, step: stepRef.current, perJoint: lastPerJointSims, motion: motionMetric, motionScale });
 
-				// debug log: step, sim, framesAbove
+				// debug log: step, sim, penalizedSim, motion
 				try {
-					console.debug('pose-detect', { step: stepRef.current, sim, framesAbove: framesAboveRef.current, threshold, perJoint: lastPerJointSims });
+					console.debug('pose-detect', { step: stepRef.current, sim, penalizedSim, motion: motionMetric, motionScale, framesAbove: framesAboveRef.current, threshold, perJoint: lastPerJointSims });
 				} catch (e) {}
 		});
 
