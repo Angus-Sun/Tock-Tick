@@ -7,7 +7,7 @@ export default function Logo({ className = "nav-logo-img" }) {
   return (
     <img
       src={src}
-      alt="Matcha Dance logo"
+      alt="MatchA Dance logo"
       className={className}
       onError={() => setSrc(fallbackSvg)}
       decoding="async"

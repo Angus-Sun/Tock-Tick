@@ -83,7 +83,7 @@ export default function Auth() {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-logo">
-          <h1 className="auth-brand">Matcha Dance</h1>
+          <h1 className="auth-brand">MatchA Dance</h1>
         </div>
         
         <h2 className="auth-title">

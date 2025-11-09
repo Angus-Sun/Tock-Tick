@@ -37,7 +37,7 @@ export default function Home() {
   return (
     <div className="home-page">
       <header className="home-hero">
-  <h1 className="home-title">Matcha Dance</h1>
+  <h1 className="home-title">MatchA Dance</h1>
         <p className="home-sub">Discover community challenges & prove your mimic skills.</p>
         <div className="home-actions">
           <Link to="/upload" className="hero-btn accent">Upload</Link>
@@ -74,14 +74,14 @@ export default function Home() {
       </main>
       <footer className="site-footer">
         <div className="footer-inner">
-          <div className="brand">TokTik</div>
+          <div className="brand">MatchA Dance</div>
           <nav className="footer-links">
             <a href="#about">About</a>
             <a href="#terms">Terms</a>
             <a href="#privacy">Privacy</a>
             <a href="#contact">Contact</a>
           </nav>
-          <div className="copy">© {new Date().getFullYear()} TokTik. All rights reserved.</div>
+          <div className="copy">© {new Date().getFullYear()} MatchA Dance. All rights reserved.</div>
         </div>
       </footer>
     </div>
