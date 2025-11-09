@@ -520,7 +520,11 @@ export default function ChallengePage() {
     // Send to backend for authoritative submission and leaderboard updates
     try {
       const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
-      const resp = await fetch(`${API_BASE}/api/submit-score`, {
+      const url = `${API_BASE}/api/submit-score`;
+      console.log('Submitting score to:', url);
+      console.log('API_BASE:', API_BASE);
+      
+      const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -533,15 +537,20 @@ export default function ChallengePage() {
         })
       });
 
+      console.log('Response status:', resp.status);
       const json = await resp.json();
+      console.log('Response body:', json);
+      
       if (!resp.ok) {
         console.error('Submit failed', json);
+        alert(`Submit failed: ${json.error || resp.statusText}`);
         setUploading(false);
       } else {
         window.location.reload();
       }
     } catch (err) {
       console.error('Submission error:', err);
+      alert(`Submission error: ${err.message}`);
       setUploading(false);
     }
   };
@@ -760,7 +769,7 @@ export default function ChallengePage() {
                       })()
                     )}
                 <button className="btn" disabled={uploading} onClick={handleUploadMimic}>
-                  {uploading ? 'Uploading...' : '⬆️ Upload Mimic'}
+                  {uploading ? 'Uploading...' : '⬆️ Upload Match'}
                 </button>
               </>
             ) : (
