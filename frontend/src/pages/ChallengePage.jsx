@@ -612,7 +612,7 @@ export default function ChallengePage() {
         </div>
 
         <div className="pane__right">
-          <p className="pane__label">📹 Your Mimic</p>
+          <p className="pane__label">📹 Your Match(a)</p>
 
           <div className="video-container">
             {(!recording && recordedUrl) ? (
