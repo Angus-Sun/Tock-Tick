@@ -92,7 +92,7 @@ export default function Leaderboard({ challenge }) {
                 <td>{r.player}</td>
                 <td>{(r.score ?? 0).toFixed(1)}%</td>
                 <td className="lb__pp-cell">
-                  {r.pp_earned ? (
+                  {r.pp_earned !== null && r.pp_earned !== undefined ? (
                     <span className="lb__pp-badge">+{r.pp_earned}</span>
                   ) : (
                     <span className="lb__pp-none">-</span>

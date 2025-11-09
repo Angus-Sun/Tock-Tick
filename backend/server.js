@@ -154,9 +154,9 @@ app.post('/api/submit-score', async (req, res) => {
     }
 
     // Ensure we have an authoritative PP value on the server BEFORE inserting score.
-    // If client didn't send PP or sent 0, compute PP here.
+    // If client didn't send PP, compute PP here. Accept 0 as valid (e.g., from early completion penalty)
     let effectivePP = (ppData && typeof ppData.totalPP === 'number') ? ppData.totalPP : null;
-    if (effectivePP == null || effectivePP === 0) {
+    if (effectivePP == null) {
       try {
         // Fetch player history for PP calculation
         const { data: userStatsForCalc } = await supabase
