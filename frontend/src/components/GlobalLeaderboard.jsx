@@ -6,7 +6,6 @@ import "./GlobalLeaderboard.css";
 export default function GlobalLeaderboard() {
   const [leaderboardData, setLeaderboardData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('all'); // all, today, week, month
   const [userRank, setUserRank] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const navigate = useNavigate();
@@ -14,7 +13,7 @@ export default function GlobalLeaderboard() {
   useEffect(() => {
     fetchLeaderboard();
     fetchCurrentUser();
-  }, [filter]);
+  }, []);
 
   const fetchCurrentUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -26,43 +25,35 @@ export default function GlobalLeaderboard() {
 
   const fetchUserRank = async (userId) => {
     try {
-      const { data, error } = await supabase.rpc('get_user_rank', { user_uuid: userId });
-      if (!error && data && data.length > 0) {
-        setUserRank(data[0]);
+      const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+      const res = await fetch(`${API_BASE}/api/user-stats/${encodeURIComponent(userId)}`);
+      if (!res.ok) {
+        console.error('Failed to fetch user stats:', await res.text());
+        return;
       }
+      const json = await res.json();
+      // Prefer RPC ranking if present, otherwise derive from playerRank
+      if (json.ranking) setUserRank(json.ranking);
+      else if (json.playerRank) setUserRank(json.playerRank);
     } catch (err) {
-      console.error("Error fetching user rank:", err);
+      console.error('Error fetching user rank:', err);
     }
   };
 
   const fetchLeaderboard = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from('global_leaderboard')
-        .select(`
-          user_id,
-          username,
-          total_pp,
-          rank_position,
-          rank_tier,
-          recent_activity,
-          last_updated
-        `)
-        .order('rank_position', { ascending: true })
-        .limit(50);
-
-      // Apply time filters if needed
-      if (filter !== 'all') {
-        const timeFilter = getTimeFilter(filter);
-        query = query.gte('last_updated', timeFilter);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error("Error fetching leaderboard:", error);
+      const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+      const params = new URLSearchParams();
+      params.set('limit', '50');
+      params.set('offset', '0');
+      // Note: server doesn't currently support time filtering on this endpoint; keep client-side filter optional
+      const resp = await fetch(`${API_BASE}/api/global-leaderboard?${params.toString()}`);
+      if (!resp.ok) {
+        console.error('Error fetching leaderboard from server:', await resp.text());
+        setLeaderboardData([]);
       } else {
+        const data = await resp.json();
         setLeaderboardData(data || []);
       }
     } catch (err) {
@@ -72,21 +63,7 @@ export default function GlobalLeaderboard() {
     }
   };
 
-  const getTimeFilter = (period) => {
-    const now = new Date();
-    switch (period) {
-      case 'today':
-        return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-      case 'week':
-        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        return weekAgo.toISOString();
-      case 'month':
-        const monthAgo = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate());
-        return monthAgo.toISOString();
-      default:
-        return null;
-    }
-  };
+  // Time filters intentionally removed per UX preference
 
   const getRankIcon = (position) => {
     if (position === 1) return "🥇";
@@ -159,32 +136,8 @@ export default function GlobalLeaderboard() {
   return (
     <div className="global-leaderboard">
       <div className="leaderboard-header">
-        <h2>🏆 Global Leaderboard</h2>
-        <div className="leaderboard-controls">
-          <div className="time-filters">
-            <button 
-              className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
-              onClick={() => setFilter('all')}
-            >
-              All Time
-            </button>
-            <button 
-              className={`filter-btn ${filter === 'month' ? 'active' : ''}`}
-              onClick={() => setFilter('month')}
-            >
-              This Month
-            </button>
-            <button 
-              className={`filter-btn ${filter === 'week' ? 'active' : ''}`}
-              onClick={() => setFilter('week')}
-            >
-              This Week
-            </button>
-          </div>
-          <button className="refresh-btn" onClick={refreshLeaderboard} title="Refresh Rankings">
-            🔄
-          </button>
-        </div>
+  <h2>🏆 Top Performers</h2>
+        {/* Controls removed: no time filters or manual refresh by UX decision */}
       </div>
 
       {/* User's Current Rank Card */}
@@ -270,7 +223,7 @@ export default function GlobalLeaderboard() {
       {leaderboardData.length > 0 && (
         <div className="leaderboard-footer">
           <p>Showing top {leaderboardData.length} players</p>
-          <button className="view-more-btn" onClick={() => navigate('/rankings')}>
+          <button className="view-more-btn" onClick={() => navigate('/leaderboard')}>
             View Full Rankings
           </button>
         </div>

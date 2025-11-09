@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '../utils/supabaseClient';
 import { useUser } from '../hooks/useUser.jsx';
 import { getUserStats } from '../utils/scoringAPI.js';
@@ -8,6 +8,9 @@ import './Profile.css';
 export default function ProfilePage() {
   const { user, profile, setProfile } = useUser();
   const navigate = useNavigate();
+  const { userId: paramUserId } = useParams();
+  const viewingOther = !!paramUserId;
+  const targetUserId = paramUserId || user?.id;
   const [username, setUsername] = useState(profile?.username ?? '');
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState('uploads'); // 'uploads', 'mimics'
@@ -17,6 +20,7 @@ export default function ProfilePage() {
   const [userStats, setUserStats] = useState(null);
   const [ranking, setRanking] = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [profileUser, setProfileUser] = useState(null);
 
   // Helper functions for tier display
   const getTierIcon = (tier) => {
@@ -62,6 +66,8 @@ export default function ProfilePage() {
 }
 
   const uploadAvatar = async (file) => {
+  // Disallow avatar upload when viewing someone else's profile
+  if (viewingOther) return;
   if (!file || !user) return;
   setUploading(true);
   const ext = file.name.includes('.') ? file.name.split('.').pop() : 'png';
@@ -92,6 +98,7 @@ export default function ProfilePage() {
 
 
   const saveUsername = async () => {
+    if (viewingOther) return; // can't edit someone else's profile
     if (!user) {
       navigate('/login');
       return;
@@ -111,7 +118,7 @@ export default function ProfilePage() {
     const { data, error } = await supabase
       .from('challenges')
       .select('*')
-      .eq('uploader_id', user.id)
+      .eq('uploader_id', targetUserId)
       .order('created_at', { ascending: false });
     if (error) console.error(error);
     else setUploads(data || []);
@@ -121,19 +128,19 @@ export default function ProfilePage() {
     const { data, error } = await supabase
       .from('scores')
       .select('*, challenges(*)')
-      .eq('player_id', user.id)
+      .eq('player_id', targetUserId)
       .order('created_at', { ascending: false });
     if (error) console.error(error);
     else setMimics(data || []);
   };
 
   const fetchUserStats = async () => {
-    if (!user) return;
+    if (!targetUserId) return;
     
     setStatsLoading(true);
     try {
       // Try backend API first
-      const statsData = await getUserStats(user.id);
+      const statsData = await getUserStats(targetUserId);
       setUserStats(statsData.stats);
       setRanking(statsData.ranking);
     } catch (error) {
@@ -144,7 +151,7 @@ export default function ProfilePage() {
         const { data: stats } = await supabase
           .from('user_stats')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('user_id', targetUserId)
           .single();
         
         if (stats) {
@@ -152,7 +159,7 @@ export default function ProfilePage() {
           
           // Get basic rank info
           const { data: rank } = await supabase.rpc('get_user_rank', { 
-            user_uuid: user.id 
+            user_uuid: targetUserId 
           });
           
           if (rank && rank.length > 0) {
@@ -169,14 +176,27 @@ export default function ProfilePage() {
 
   // Load data when tab or user changes
   useEffect(() => {
-    if (!user) return;
+    // If viewing other user's profile, fetch their profile record
+    if (viewingOther) {
+      (async () => {
+        try {
+          const { data: p } = await supabase.from('profiles').select('*').eq('id', paramUserId).single();
+          setProfileUser(p || null);
+          setUsername(p?.username || '');
+        } catch (e) {
+          console.error('Failed to fetch profile for userId', paramUserId, e);
+        }
+      })();
+    }
+
+    if (!targetUserId) return;
     fetchUserStats(); // Fetch stats whenever user changes
     if (activeTab === 'uploads') fetchUploads();
     if (activeTab === 'mimics') fetchMimics();
-  }, [activeTab, user]);
+  }, [activeTab, targetUserId, paramUserId]);
 
-  // Guard against null user while auth state loads
-  if (!user) {
+  // Guard: if not viewing other and auth user hasn't loaded yet, show loading
+  if (!viewingOther && !user) {
     return (
       <div className="profile-container">
         <div className="profile-loading">Loading profile...</div>
@@ -211,8 +231,8 @@ export default function ProfilePage() {
           </div>
         ) : (
           <div className="profile-username-display">
-            <h1>{profile?.username || user?.email}</h1>
-            <button onClick={() => setIsEditing(true)} className="profile-btn-edit">Edit✏️</button>
+            <h1>{(viewingOther ? profileUser?.username : profile?.username) || user?.email}</h1>
+            {!viewingOther && <button onClick={() => setIsEditing(true)} className="profile-btn-edit">Edit✏️</button>}
           </div>
         )}
 
@@ -306,10 +326,12 @@ export default function ProfilePage() {
                     <h3 className="profile-video-title">{u.title}</h3>
                     <div className="profile-video-actions">
                       <button onClick={() => navigate(`/challenge/${u.id}`)} className="profile-compete-btn">Compete</button>
-                      <button onClick={()=> {
-                        if (window.confirm("Are you sure you want to delete this challenge?")) {
-                          handleDelete(u.id, "challenges");
-                        }}} className="profile-delete-btn">🗑️</button>
+                      {!viewingOther && (
+                        <button onClick={()=> {
+                          if (window.confirm("Are you sure you want to delete this challenge?")) {
+                            handleDelete(u.id, "challenges");
+                          }}} className="profile-delete-btn">🗑️</button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -340,14 +362,16 @@ export default function ProfilePage() {
                       />
                     </div>
                     <h3 className="profile-video-title">{m.challenges?.title}</h3>
-                    <div className="profile-video-actions">
+                      <div className="profile-video-actions">
                       <p className="profile-video-score">⭐ {m.score?.toFixed(1)}%</p>
-                      <button onClick={(e) => {
-                        e.stopPropagation();
-                        if (window.confirm("Are you sure you want to delete this mimic?")) {
-                          handleDelete(m.id, "scores");
-                        }
-                        }} className="profile-delete-btn">🗑️</button>
+                      {!viewingOther && (
+                        <button onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm("Are you sure you want to delete this mimic?")) {
+                            handleDelete(m.id, "scores");
+                          }
+                          }} className="profile-delete-btn">🗑️</button>
+                      )}
                     </div>
                     
                   </div>

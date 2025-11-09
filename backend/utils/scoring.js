@@ -276,42 +276,27 @@ function calculatePerformancePoints(scoreData, playerHistory = {}) {
   } = playerHistory;
 
   // Base PP from score (scaled to 0-100 range)
-  let basePP = Math.max(PP_BASE_VALUES.MIN_PP, (finalScore / 100) * PP_BASE_VALUES.MAX_PP);
+  // Base PP calculation aligned with frontend fallback (calculateBasicPP):
+  // basePP = max(MIN_PP, round(finalScore * 0.8)) where finalScore is percent (0-100)
+  let basePP = Math.max(PP_BASE_VALUES.MIN_PP, Math.round(finalScore * 0.8));
 
-  // Difficulty bonus
-  const difficultyBonus = (() => {
-    switch (difficulty) {
-      case 'EXPERT': return PP_BASE_VALUES.DIFFICULTY_BONUS;
-      case 'ADVANCED': return PP_BASE_VALUES.DIFFICULTY_BONUS * 0.7;
-      case 'INTERMEDIATE': return PP_BASE_VALUES.DIFFICULTY_BONUS * 0.4;
-      default: return 0;
-    }
-  })();
+  // Difficulty multiplier from DIFFICULTY_MULTIPLIERS
+  const multiplier = DIFFICULTY_MULTIPLIERS[difficulty] || 1.0;
 
-  // Personal best improvement bonus
-  const improvementBonus = finalScore > personalBest 
-    ? PP_BASE_VALUES.IMPROVEMENT_BONUS * ((finalScore - personalBest) / 100)
-    : 0;
+  // Difficulty bonus represented as additional PP (for breakdown)
+  const difficultyBonus = Math.round(basePP * (multiplier - 1));
 
-  // Consistency streak bonus
-  const streakBonus = currentStreak >= 3 
-    ? PP_BASE_VALUES.STREAK_BONUS * Math.min(3, Math.floor(currentStreak / 3))
-    : 0;
-
-  // Excellence bonus for exceptional performance
-  const excellenceBonus = finalScore >= 95 ? 15 : finalScore >= 90 ? 10 : finalScore >= 85 ? 5 : 0;
-
-  // Total PP calculation
-  const totalPP = Math.round(basePP + difficultyBonus + improvementBonus + streakBonus + excellenceBonus);
+  // Total PP is basePP scaled by difficulty multiplier
+  const totalPP = Math.round(basePP * multiplier);
 
   return {
     totalPP,
     breakdown: {
       basePP: Math.round(basePP),
       difficultyBonus: Math.round(difficultyBonus),
-      improvementBonus: Math.round(improvementBonus),
-      streakBonus: Math.round(streakBonus),
-      excellenceBonus
+      improvementBonus: 0,
+      streakBonus: 0,
+      excellenceBonus: 0
     },
     metadata: {
       isPersonalBest: finalScore > personalBest,
@@ -358,7 +343,7 @@ function calculateLeaderboardPosition(score, allScores = []) {
   };
 }
 
-module.exports = {
+export {
   calculatePoseSimilarity,
   assessChallengeDifficulty,
   calculateConsistency,

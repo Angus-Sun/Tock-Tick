@@ -100,19 +100,6 @@ export default function Home() {
           ))}
         </div>
       </main>
-
-      <footer className="site-footer animate-on-scroll">
-        <div className="footer-inner">
-          <div className="brand">MatchA Dance</div>
-          <nav className="footer-links">
-            <a href="#about">About</a>
-            <a href="#terms">Terms</a>
-            <a href="#privacy">Privacy</a>
-            <a href="#contact">Contact</a>
-          </nav>
-          <div className="copy">© {new Date().getFullYear()} MatchA Dance. All rights reserved.</div>
-        </div>
-      </footer>
     </div>
   );
 }

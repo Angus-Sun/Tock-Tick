@@ -31,6 +31,7 @@ export default function App() {
             <Route path="/challenge/:id" element={<ChallengePage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/login" element={<Auth />} />
+            <Route path="/profile/:userId" element={<ProfilePage />} />
             <Route
               path="/profile"
               element={

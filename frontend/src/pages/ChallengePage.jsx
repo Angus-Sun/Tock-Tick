@@ -444,22 +444,63 @@ export default function ChallengePage() {
       .from("videos")
       .getPublicUrl(data.path);
 
-  // save score row - use calculated PP from pose detection
-  const scoreToSave = finalPP !== null ? finalPP : 0;
-  console.log("Saving PP to database:", scoreToSave);
-    
-    const { error: dbError } = await supabase.from("scores").insert([
-      {
-        challenge_id: id,
-        player: playerName,
-        player_id: userId,
-        score: scoreToSave,
-        mimic_url: publicData.publicUrl,
-      },
-    ]);
+    // Build scoreData payload for server
+    const currentScores = scoresRef.current || [];
+    const validStepScores = currentScores.filter(s => s != null && !isNaN(s));
+    const avg = validStepScores.length > 0 ? (validStepScores.reduce((a,b)=>a+(b||0),0)/validStepScores.length) : 0;
+    const rawScore = Math.round(avg * 100);
+    const inflated = finalScore || Math.min(rawScore * SCORE_INFLATION.factor, SCORE_INFLATION.max);
 
-  if (dbError) alert("Error saving score: " + dbError.message);
-  else alert(`✅ Mimic uploaded successfully! PP: ${scoreToSave}`);
+    const scoreData = {
+      finalScore: inflated,
+      breakdown: {
+        accuracy: Math.round((validStepScores.length > 0 ? validStepScores.reduce((a,b)=>a+(b||0),0)/validStepScores.length : 0) * 100),
+        consistency: computeConsistency(currentScores),
+        timing: 0,
+        style: 0
+      },
+      difficulty: challenge?.difficulty || 'BEGINNER',
+      difficultyMultiplier: challenge?.difficultyMultiplier || 1.0,
+      metadata: {
+        totalSteps: currentScores.length,
+        validSteps: validStepScores.length,
+        averageStepScore: Math.round(avg * 100)
+      }
+    };
+
+    const ppData = {
+      totalPP: finalPP || 0,
+      breakdown: {},
+      metadata: {}
+    };
+
+    // Send to backend for authoritative submission and leaderboard updates
+    try {
+      const API_BASE = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3001';
+      const resp = await fetch(`${API_BASE}/api/submit-score`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          challengeId: id,
+          userId,
+          playerName,
+          mimicUrl: publicData.publicUrl,
+          scoreData,
+          ppData
+        })
+      });
+
+      const json = await resp.json();
+      if (!resp.ok) {
+        console.error('Submit failed', json);
+        alert('Error submitting score: ' + (json.error || 'unknown'));
+      } else {
+        alert(`✅ Mimic uploaded and submitted! PP: ${ppData.totalPP}`);
+      }
+    } catch (err) {
+      console.error('Submission error:', err);
+      alert('Failed to submit score to server.');
+    }
 
     setUploading(false);
     setFinalScore(null); // Reset for next recording

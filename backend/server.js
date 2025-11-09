@@ -118,7 +118,7 @@ app.post('/api/calculate-score', async (req, res) => {
 // Submit score and update all related data
 app.post('/api/submit-score', async (req, res) => {
   try {
-    const {
+    let {
       challengeId,
       userId,
       playerName,
@@ -127,31 +127,43 @@ app.post('/api/submit-score', async (req, res) => {
       ppData
     } = req.body;
 
-    if (!challengeId || !userId || !playerName || !scoreData) {
+    // Helpful debug logging for failed submissions
+    console.log('[/api/submit-score] incoming request', {
+      challengeId: challengeId || null,
+      userId: userId || null,
+      playerName: playerName || null,
+      mimicUrl: mimicUrl ? '<present>' : null,
+      scoreDataPresent: !!scoreData,
+      ppDataPresent: !!ppData,
+      ip: req.ip,
+      origin: req.get('origin')
+    });
+
+    const missing = {};
+    if (!challengeId) missing.challengeId = true;
+    if (!userId) missing.userId = true;
+    if (!playerName) missing.playerName = true;
+    if (!scoreData) missing.scoreData = true;
+
+    if (Object.keys(missing).length > 0) {
+      console.warn('[/api/submit-score] missing fields in request', missing);
       return res.status(400).json({ 
-        error: 'Missing required fields' 
+        error: 'Missing required fields',
+        missing
       });
     }
 
     // Insert score record with extended data
+    // Insert into scores table - only include columns present in the current schema
     const { data: scoreRecord, error: scoreError } = await supabase
       .from('scores')
       .insert([{
         challenge_id: challengeId,
         player: playerName,
         player_id: userId,
+        // 'score' column holds the percentage accuracy (per schema)
         score: scoreData.finalScore,
-        mimic_url: mimicUrl,
-        accuracy_score: scoreData.breakdown?.accuracy || 0,
-        consistency_score: scoreData.breakdown?.consistency || 0,
-        timing_score: scoreData.breakdown?.timing || 0,
-        style_score: scoreData.breakdown?.style || 0,
-        difficulty_level: scoreData.difficulty || 'BEGINNER',
-        difficulty_multiplier: scoreData.difficultyMultiplier || 1.0,
-        total_steps: scoreData.metadata?.totalSteps || 0,
-        valid_steps: scoreData.metadata?.validSteps || 0,
-        pp_earned: ppData?.totalPP || 0,
-        is_personal_best: ppData?.metadata?.isPersonalBest || false
+        mimic_url: mimicUrl
       }])
       .select()
       .single();
@@ -160,37 +172,212 @@ app.post('/api/submit-score', async (req, res) => {
       throw scoreError;
     }
 
-    // Record PP history
-    if (ppData?.totalPP > 0) {
+    // Ensure we have an authoritative PP value on the server.
+    // If client didn't send PP or sent 0, compute PP here.
+    let effectivePP = (ppData && typeof ppData.totalPP === 'number') ? ppData.totalPP : null;
+    if (effectivePP == null || effectivePP === 0) {
+      try {
+        // Fetch player history for PP calculation
+        const { data: userStatsForCalc } = await supabase
+          .from('user_stats')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+
+        const { data: personalBestData } = await supabase
+          .from('scores')
+          .select('score')
+          .eq('player_id', userId)
+          .eq('challenge_id', challengeId)
+          .order('score', { ascending: false })
+          .limit(1)
+          .single();
+
+        const { data: recentScores } = await supabase
+          .from('scores')
+          .select('score')
+          .eq('player_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        const playerHistory = {
+          personalBest: personalBestData?.score || 0,
+          recentScores: recentScores?.map(s => s.score) || [],
+          totalPlays: userStatsForCalc?.total_plays || 0,
+          currentStreak: userStatsForCalc?.current_streak || 0
+        };
+
+        const ppResult = calculatePerformancePoints(scoreData, playerHistory);
+        effectivePP = ppResult.totalPP;
+        // replace ppData so we keep breakdown/metadata consistent
+        ppData = ppResult;
+        console.log('Server-calculated PP:', effectivePP);
+      } catch (e) {
+        console.error('Failed to calculate PP server-side:', e);
+        effectivePP = 0;
+      }
+    }
+
+    // Record PP history (use effectivePP)
+    if (typeof effectivePP === 'number' && effectivePP > 0) {
       const { data: currentStats } = await supabase
         .from('user_stats')
         .select('total_pp')
         .eq('user_id', userId)
         .single();
 
-      await supabase
+      const previousTotal = currentStats?.total_pp || 0;
+      const { data: ppHistoryData, error: ppHistoryError } = await supabase
         .from('pp_history')
         .insert([{
           user_id: userId,
           score_id: scoreRecord.id,
           challenge_id: challengeId,
-          pp_earned: ppData.totalPP,
-          pp_breakdown: ppData.breakdown,
-          previous_total_pp: currentStats?.total_pp || 0,
-          new_total_pp: (currentStats?.total_pp || 0) + ppData.totalPP
-        }]);
+          pp_earned: effectivePP,
+          pp_breakdown: ppData.breakdown || {},
+          previous_total_pp: previousTotal,
+          new_total_pp: previousTotal + effectivePP
+        }])
+        .select();
+
+      if (ppHistoryError) {
+        console.error('Failed inserting pp_history:', ppHistoryError);
+      } else {
+        console.log('Inserted pp_history id(s):', ppHistoryData?.map(d=>d.id));
+      }
+    }
+
+    // Update or create user_stats with new PP and play counts
+    if (ppData?.totalPP >= 0) {
+      try {
+        const { data: existingStats } = await supabase
+          .from('user_stats')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+
+  const prevTotal = existingStats?.total_pp || 0;
+  const prevPlays = existingStats?.total_plays || 0;
+  const newTotal = prevTotal + (effectivePP || 0);
+
+        if (existingStats) {
+          const { data: updatedStats, error: updateError } = await supabase
+            .from('user_stats')
+            .update({
+              total_pp: newTotal,
+              total_plays: prevPlays + 1,
+              last_played: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('user_id', userId)
+            .select()
+            .single();
+
+          if (updateError) console.error('Failed updating user_stats:', updateError);
+          else console.log('Updated user_stats:', updatedStats);
+        } else {
+          const { data: insertedStats, error: insertError } = await supabase
+            .from('user_stats')
+            .insert([{
+              user_id: userId,
+              display_name: playerName,
+              total_pp: newTotal,
+              total_plays: 1,
+              current_streak: ppData.metadata?.isPersonalBest ? 1 : 0,
+              last_played: new Date().toISOString()
+            }])
+            .select()
+            .single();
+
+          if (insertError) console.error('Failed inserting user_stats:', insertError);
+          else console.log('Inserted user_stats:', insertedStats);
+        }
+      } catch (err) {
+        console.error('Failed updating user_stats:', err);
+      }
     }
 
     // Update challenge metadata
     await updateChallengeMetadata(challengeId, scoreData.finalScore);
 
     // Trigger global leaderboard update
-    await supabase.rpc('update_global_leaderboard');
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('update_global_leaderboard');
+      if (rpcError) {
+        console.error('update_global_leaderboard RPC error:', rpcError);
+      } else {
+        console.log('update_global_leaderboard RPC result:', rpcData);
+      }
+    } catch (rpcEx) {
+      console.error('Exception calling update_global_leaderboard RPC:', rpcEx);
+    }
+    // Fetch final user_stats to return to client for confirmation
+    let finalUserStats = null;
+    try {
+      const { data: fetchedStats } = await supabase
+        .from('user_stats')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+      finalUserStats = fetchedStats || null;
+    } catch (e) {
+      console.error('Failed fetching final user_stats:', e);
+    }
 
+    // Fetch the player's global_leaderboard entry to show current rank (if present)
+    let leaderboardEntry = null;
+    try {
+      const { data: lbEntry, error: lbError } = await supabase
+        .from('global_leaderboard')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (lbError && lbError.code !== 'PGRST116') { // ignore "No rows found" style errors
+        console.error('Error fetching global_leaderboard entry:', lbError);
+      } else {
+        leaderboardEntry = lbEntry || null;
+      }
+    } catch (e) {
+      console.error('Failed fetching leaderboard entry:', e);
+    }
+
+    // If leaderboard entry is missing, try an upsert fallback so recent players appear immediately
+    if (!leaderboardEntry) {
+      try {
+        const upsertPayload = {
+          user_id: userId,
+          username: playerName,
+          total_pp: finalUserStats?.total_pp || (ppData?.totalPP || 0),
+          rank_tier: finalUserStats ? getPlayerRank(finalUserStats.total_pp)?.tier : null,
+          last_updated: new Date().toISOString()
+        };
+
+        const { data: upsertRes, error: upsertErr } = await supabase
+          .from('global_leaderboard')
+          .upsert([upsertPayload], { onConflict: 'user_id' })
+          .select()
+          .single();
+
+        if (upsertErr) {
+          console.error('Failed upserting global_leaderboard fallback:', upsertErr);
+        } else {
+          console.log('Upserted fallback leaderboard entry:', upsertRes);
+          leaderboardEntry = upsertRes;
+        }
+      } catch (e) {
+        console.error('Exception during leaderboard upsert fallback:', e);
+      }
+    }
+
+    // Return detail about stored objects
     res.json({ 
       success: true, 
       scoreId: scoreRecord.id,
-      message: 'Score submitted successfully' 
+      message: 'Score submitted successfully',
+      ppStored: ppData?.totalPP || 0,
+      userStats: finalUserStats,
+      leaderboardEntry
     });
 
   } catch (error) {
@@ -254,6 +441,46 @@ app.get('/api/global-leaderboard', async (req, res) => {
   } catch (error) {
     console.error('Leaderboard error:', error);
     res.status(500).json({ error: 'Failed to fetch leaderboard' });
+  }
+});
+
+// Get leaderboard around a user (surrounding ranks)
+app.get('/api/global-leaderboard/around/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const radius = parseInt(req.query.radius || '5', 10);
+
+    // Fetch the user's leaderboard entry
+    const { data: userEntry } = await supabase
+      .from('global_leaderboard')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (!userEntry) {
+      // Return top if user is not on leaderboard
+      const { data: top } = await supabase
+        .from('global_leaderboard')
+        .select('*')
+        .order('rank_position', { ascending: true })
+        .limit(radius * 2 + 1);
+
+      return res.json({ around: top || [], user: null });
+    }
+
+    const start = Math.max(1, userEntry.rank_position - radius);
+    const end = userEntry.rank_position + radius;
+
+    const { data: around } = await supabase
+      .from('global_leaderboard')
+      .select('*')
+      .order('rank_position', { ascending: true })
+      .range(start - 1, end - 1); // range is zero-indexed
+
+    res.json({ around: around || [], user: userEntry });
+  } catch (error) {
+    console.error('Leaderboard around user error:', error);
+    res.status(500).json({ error: 'Failed to fetch leaderboard around user' });
   }
 });
 
