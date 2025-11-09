@@ -3,8 +3,17 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../utils/supabaseClient.js";
 import { v4 as uuidv4 } from "uuid";
 import Leaderboard from "../components/Leaderboard.jsx";
-import usePoseDetection from "../hooks/usePoseDetection.js";
 import "./ChallengePage.css";
+
+// Lazy load pose detection only when needed
+let usePoseDetection = null;
+const loadPoseDetection = async () => {
+  if (!usePoseDetection) {
+    const module = await import("../hooks/usePoseDetection.js");
+    usePoseDetection = module.default;
+  }
+  return usePoseDetection;
+};
 
 export default function ChallengePage() {
   const { id } = useParams();
@@ -18,6 +27,7 @@ export default function ChallengePage() {
   const [finalScore, setFinalScore] = useState(null);
   const [poseReady, setPoseReady] = useState(false);
   const [poseInitializing, setPoseInitializing] = useState(true);
+  const [poseHookLoaded, setPoseHookLoaded] = useState(false);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -28,22 +38,17 @@ export default function ChallengePage() {
   const recordedVideoRef = useRef(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  // Pose detection hook  - reference sequence will be set from challenge.reference_sequence
-  const { currentScore, perStepScores, isRunning, start: startPose, stop: stopPose, reset: resetPose } = usePoseDetection({
-    videoRef,
-    referenceSequence: challenge?.reference_sequence || [],
-    threshold: 0.75,
-    hold: 4,
-    autoSkip: 0, // Disable auto-skip, manual progression
-    disableAdvancement: false,
-    onResult: (r) => {
-      // First successful pose frame => mark ready
-      if (!poseReady && r?.pose && Array.isArray(r.pose) && r.pose.length > 0) {
-        setPoseReady(true);
-        setPoseInitializing(false);
-      }
-    }
+  // Pose detection state - only when loaded
+  const [poseDetectionState, setPoseDetectionState] = useState({
+    currentScore: 0,
+    perStepScores: [],
+    isRunning: false,
+    start: () => {},
+    stop: () => {},
+    reset: () => {}
   });
+
+  const { currentScore, perStepScores, isRunning, start: startPose, stop: stopPose, reset: resetPose } = poseDetectionState;
 
   // Keep scoresRef in sync with perStepScores
   useEffect(() => {
@@ -203,10 +208,41 @@ export default function ChallengePage() {
     }
   }, [recordedBlob]);
 
-  // Start pose engine once camera + challenge reference sequence available
+  // Load pose detection hook only when needed
   useEffect(() => {
-    if (!poseReady && !isRunning && videoRef.current && challenge?.reference_sequence) {
-      // Kick off initialization (will flip poseReady in onResult)
+    if (!poseHookLoaded && challenge?.reference_sequence && videoRef.current) {
+      setPoseInitializing(true);
+      
+      loadPoseDetection().then((usePoseDetectionHook) => {
+        // Initialize the pose detection hook
+        const poseHook = usePoseDetectionHook({
+          videoRef,
+          referenceSequence: challenge?.reference_sequence || [],
+          threshold: 0.75,
+          hold: 4,
+          autoSkip: 0,
+          disableAdvancement: false,
+          onResult: (r) => {
+            if (!poseReady && r?.pose && Array.isArray(r.pose) && r.pose.length > 0) {
+              setPoseReady(true);
+              setPoseInitializing(false);
+            }
+          }
+        });
+        
+        setPoseDetectionState(poseHook);
+        setPoseHookLoaded(true);
+        setPoseInitializing(false);
+      }).catch((e) => {
+        console.warn('Failed to load pose detection:', e);
+        setPoseInitializing(false);
+      });
+    }
+  }, [challenge?.reference_sequence, videoRef.current, poseHookLoaded]);
+
+  // Start pose engine once loaded and ready
+  useEffect(() => {
+    if (poseHookLoaded && !poseReady && !isRunning && videoRef.current && challenge?.reference_sequence) {
       try {
         setPoseInitializing(true);
         startPose();
@@ -215,7 +251,7 @@ export default function ChallengePage() {
         setPoseInitializing(false);
       }
     }
-  }, [challenge?.reference_sequence, videoRef.current]);
+  }, [poseHookLoaded, challenge?.reference_sequence, videoRef.current, poseReady, isRunning, startPose]);
 
   const fetchChallenge = async () => {
     const { data, error } = await supabase
