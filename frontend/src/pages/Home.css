@@ -1,6 +1,9 @@
 /* Refreshed Home page styling matching new JSX structure */
 .home-page { background:#0d0d0d; min-height:100vh; color:#e6e6e6; display:flex; flex-direction:column; }
-.home-hero { padding:90px 24px 26px; text-align:center; background:linear-gradient(180deg,#0d0d0d 0%, #121212 55%, #0d0d0d 100%); }
+.home-hero { padding:96px 24px 30px; text-align:center; background:linear-gradient(180deg,#0d0d0d 0%, #121212 55%, #0d0d0d 100%); }
+.home-logo-wrapper { display:flex; justify-content:center; margin-bottom:14px; }
+.home-logo { width:96px; height:96px; object-fit:contain; filter: drop-shadow(0 6px 18px rgba(59,122,59,.25)); border-radius:14px; }
+.home-logo:hover { transform: translateY(-2px) scale(1.02); transition: transform .25s ease; }
 .home-title { margin:0; font-size:2.75rem; font-weight:800; letter-spacing:.5px; background:linear-gradient(90deg,#d9f6d9,#9dd49d,#d9f6d9); -webkit-background-clip:text; background-clip:text; color:transparent; }
 .home-sub { margin:10px 0 22px; color:#b7c3b7; font-size:1.05rem; }
 .home-actions { display:flex; justify-content:center; gap:14px; flex-wrap:wrap; }
@@ -40,5 +43,6 @@
 
 @media (max-width:640px){
   .home-title { font-size:2.1rem; }
+  .home-logo { width:72px; height:72px; }
   .challenge-grid { gap:16px; }
 }

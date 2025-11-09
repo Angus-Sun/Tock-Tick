@@ -1,28 +1,53 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "../utils/supabaseClient.js";
+import Logo from "../components/Logo.jsx";
 import "./Home.css";
 
 export default function Home() {
   const [challenges, setChallenges] = useState([]);
+  const [showEmptyMessage, setShowEmptyMessage] = useState(false);
 
   useEffect(() => { fetchChallenges(); }, []);
 
+  // Delay showing empty message to avoid flash
   useEffect(() => {
-    // intersection observer for fade-in
+    const timer = setTimeout(() => {
+      setShowEmptyMessage(true);
+    }, 5000);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    // IntersectionObserver for bi-directional fade (in and out)
     const observer = new IntersectionObserver(
       entries => {
         entries.forEach(entry => {
           if (entry.isIntersecting) {
             entry.target.classList.add('visible');
-            observer.unobserve(entry.target);
+          } else {
+            entry.target.classList.remove('visible');
           }
         });
       },
-      { threshold: 0.2 }
+      {
+        threshold: 0.15,
+        rootMargin: '0px 0px -5% 0px', // fade out slightly before fully leaving
+      }
     );
-    document.querySelectorAll('.animate-on-scroll').forEach(el => observer.observe(el));
-    return () => observer.disconnect();
+
+    // Observe all elements on mount and when challenges update
+    const attach = () => {
+      document.querySelectorAll('.animate-on-scroll').forEach(el => observer.observe(el));
+    };
+    // slight delay to ensure DOM is ready
+    const t = setTimeout(attach, 50);
+
+    return () => {
+      clearTimeout(t);
+      observer.disconnect();
+    };
   }, [challenges]);
 
   const fetchChallenges = async () => {
@@ -36,8 +61,11 @@ export default function Home() {
 
   return (
     <div className="home-page">
-      <header className="home-hero">
-  <h1 className="home-title">MatchA Dance</h1>
+      <header className="home-hero animate-on-scroll">
+        <div className="home-logo-wrapper">
+          <Logo className="home-logo" />
+        </div>
+        <h1 className="home-title">MatchA Dance</h1>
         <p className="home-sub">Discover community challenges & prove your mimic skills.</p>
         <div className="home-actions">
           <Link to="/upload" className="hero-btn accent">Upload</Link>
@@ -45,8 +73,8 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="challenge-section" id="challenge-feed">
-        {challenges.length === 0 && <div className="empty">No challenges yet. Be first!</div>}
+      <main className="challenge-section animate-on-scroll" id="challenge-feed">
+        {challenges.length === 0 && showEmptyMessage && <div className="empty">No challenges yet. Be first!</div>}
         <div className="challenge-grid">
           {challenges.map(challenge => (
             <article key={challenge.id} className="challenge-card animate-on-scroll">
@@ -72,7 +100,7 @@ export default function Home() {
           ))}
         </div>
       </main>
-      <footer className="site-footer">
+      <footer className="site-footer animate-on-scroll">
         <div className="footer-inner">
           <div className="brand">MatchA Dance</div>
           <nav className="footer-links">
