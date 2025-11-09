@@ -97,8 +97,9 @@ export default function UploadPage() {
     let suggestedAutoSkip = null;
     
     try {
-      console.log("Processing video to extract reference poses...");
-      const result = await processVideoFile(file, { fixedIntervalSeconds: 0.5 });
+  console.log("Processing video to extract reference poses...");
+  // sample reference frames every 0.1s for finer-grained reference poses
+  const result = await processVideoFile(file, { fixedIntervalSeconds: 0.1 });
       referenceSequence = result.referenceSequence;
       stepTimes = result.stepTimes;
       suggestedAutoSkip = result.suggestedAutoSkip;

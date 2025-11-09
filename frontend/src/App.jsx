@@ -5,6 +5,7 @@ import NavBar from "./components/NavBar";
 import UploadPage from "./pages/UploadPage";
 import Home from "./pages/Home";
 import ChallengePage from "./pages/ChallengePage";
+import LeaderboardPage from "./pages/LeaderboardPage";
 import Auth from "./pages/Auth"; // your login/signup page
 import ProtectedRoute from "./components/ProtectedRoute"; // now implemented
 import ProfilePage from "./pages/Profile";
@@ -28,7 +29,9 @@ export default function App() {
               }
             />
             <Route path="/challenge/:id" element={<ChallengePage />} />
+            <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/login" element={<Auth />} />
+            <Route path="/profile/:userId" element={<ProfilePage />} />
             <Route
               path="/profile"
               element={

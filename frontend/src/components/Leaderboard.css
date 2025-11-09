@@ -39,8 +39,9 @@
 .lb__rank { color: #e6e6e6; font-weight: 600; }
 .lb__medal { display: inline-block; min-width: 1.5rem; text-align: center; }
 
-.w-rank { width: 80px; }
-.w-watch { width: 140px; }
+.w-rank { width: 60px; }
+.w-pp { width: 70px; }
+.w-watch { width: 100px; }
 
 .lb__watchBtn {
   padding: 8px 14px; 
@@ -161,6 +162,26 @@
   font-size: 0.9rem;
   color: #9dd49d;
   font-weight: 600;
+}
+
+.lb__pp-cell {
+  text-align: center;
+}
+
+.lb__pp-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #4ade80, #22c55e);
+  color: #0d0d0d;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+}
+
+.lb__pp-none {
+  color: #6a6a6a;
+  font-size: 0.8rem;
 }
 
 /* Keyframe animations for smooth transitions */
