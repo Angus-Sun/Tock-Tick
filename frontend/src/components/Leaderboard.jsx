@@ -11,7 +11,10 @@ export default function Leaderboard({ challenge }) {
   const competitorRef = useRef(null);
 
   useEffect(() => {
-    if (!challenge?.id) return;
+    if (!challenge?.id) {
+      setLoading(false);
+      return;
+    }
     fetchRows();
 
     // Realtime refresh when a new score inserts for this challenge
@@ -32,8 +35,9 @@ export default function Leaderboard({ challenge }) {
     setLoading(true);
     const { data, error } = await supabase
       .from("scores")
-      .select("id, player, score, mimic_url, created_at")
+      .select("id, player, score, mimic_url, created_at, pp_earned")
       .eq("challenge_id", challenge.id)
+      .order("pp_earned", { ascending: false })
       .order("score", { ascending: false })
       .limit(10);
 
@@ -63,10 +67,6 @@ export default function Leaderboard({ challenge }) {
       console.warn("Sync play failed (autoplay policy?):", e);
     }
   };
-
-  if (loading) {
-    return null;
-  }
 
   return (
     <div className="lb">

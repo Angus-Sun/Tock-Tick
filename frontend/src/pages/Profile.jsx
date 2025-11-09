@@ -77,35 +77,49 @@ export default function ProfilePage() {
 }
 
   const uploadAvatar = async (file) => {
-  // Disallow avatar upload when viewing someone else's profile
-  if (viewingOther) return;
-  if (!file || !user) return;
-  setUploading(true);
-  const ext = file.name.includes('.') ? file.name.split('.').pop() : 'png';
-  const filePath = `${user.id}/${Date.now()}.${ext}`;
+    // Disallow avatar upload when viewing someone else's profile
+    if (viewingOther) return;
+    if (!file || !user) return;
+    
+    setUploading(true);
+    
+    try {
+      const ext = file.name.includes('.') ? file.name.split('.').pop() : 'png';
+      const filePath = `${user.id}/${Date.now()}.${ext}`;
 
-  const { data: uploadData, error: uploadErr } = await supabase.storage
-    .from('avatars')
-    .upload(filePath, file, { cacheControl: '3600', upsert: true });
+      // Upload to storage
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { cacheControl: '3600', upsert: true });
 
-  if (uploadErr) { alert(`Upload failed: ${uploadErr.message}`); setUploading(false); return; }
+      if (uploadErr) throw uploadErr;
 
-  const { data: publicData } = supabase.storage.from('avatars').getPublicUrl(filePath);
-  const publicUrl = publicData?.publicUrl;
+      // Get public URL
+      const { data: publicData } = supabase.storage.from('avatars').getPublicUrl(filePath);
+      const publicUrl = publicData?.publicUrl;
 
-  // upsert profile (id must equal auth.uid())
-  const { data: profileData, error: dbErr } = await supabase.from('profiles').upsert([
-    { id: user.id, username, avatar_url: publicUrl, updated_at: new Date().toISOString() }
-  ], { onConflict: 'id' }).select().single();
+      if (!publicUrl) throw new Error('Failed to get public URL');
 
-  if (dbErr) alert(dbErr.message);
-  else {
-    alert('Profile updated');
-    setProfile(profileData);  // Update profile state locally
-    window.location.reload();  // Refresh to apply changes
-  }
-  setUploading(false);
-};
+      // Update profile in database
+      const { data: profileData, error: dbErr } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl, updated_at: new Date().toISOString() })
+        .eq('id', user.id)
+        .select()
+        .single();
+
+      if (dbErr) throw dbErr;
+
+      // Update local state
+      setProfile(profileData);
+      alert('Profile picture updated!');
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert(`Upload failed: ${error.message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
 
 
   const saveUsername = async () => {
@@ -114,9 +128,9 @@ export default function ProfilePage() {
       navigate('/login');
       return;
     }
-    const { data, error } = await supabase.from('profiles').upsert([
-      { id: user.id, username, updated_at: new Date().toISOString() }
-    ], { onConflict: 'id' }).select().single();
+    const { data, error } = await supabase.from('profiles').update(
+      { username, updated_at: new Date().toISOString() }
+    ).eq('id', user.id).select().single();
     
     if (error) {
       alert(error.message);
@@ -124,6 +138,20 @@ export default function ProfilePage() {
       setProfile(data);
       setUsername(data.username);
       setIsEditing(false);
+      
+      // Update just this user's entry in the global leaderboard (faster than rebuilding entire leaderboard)
+      try {
+        const { error: lbError } = await supabase
+          .from('global_leaderboard')
+          .update({ username: data.username, last_updated: new Date().toISOString() })
+          .eq('user_id', user.id);
+        
+        if (lbError) {
+          console.error('Failed to update leaderboard username:', lbError);
+        }
+      } catch (err) {
+        console.error('Error updating leaderboard:', err);
+      }
     }
   };
 
@@ -225,17 +253,27 @@ export default function ProfilePage() {
     <div className="profile-container">
       <div className="profile-header">
         <div className="profile-avatar">
-          {profile?.avatar_url ? (
-            <img src={profile.avatar_url} alt="avatar" />
+          {(viewingOther ? profileUser?.avatar_url : profile?.avatar_url) ? (
+            <img src={viewingOther ? profileUser.avatar_url : profile.avatar_url} alt="avatar" />
           ) : (
             <div className="profile-avatar-placeholder">
-              {(profile?.username || user?.email || '?')?.[0]?.toUpperCase()}
+              {((viewingOther ? profileUser?.username : profile?.username) || user?.email || '?')?.[0]?.toUpperCase()}
             </div>
           )}
-          {isEditing && (
+          {!viewingOther && isEditing && (
             <label className="profile-avatar-change">
-              Change
-              <input type="file" accept="image/*" onChange={e => uploadAvatar(e.target.files[0])} />
+              {uploading ? 'Uploading...' : 'Change'}
+              <input 
+                type="file" 
+                accept="image/*" 
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    uploadAvatar(file);
+                  }
+                }} 
+                disabled={uploading}
+              />
             </label>
           )}
         </div>
@@ -305,7 +343,7 @@ export default function ProfilePage() {
             🎬 Challenges
           </button>
           <button onClick={() => setActiveTab('mimics')} className={`profile-tab ${activeTab === 'mimics' ? 'active' : ''}`}>
-            🎯 Mimics
+            🎯 Matches
           </button>
         </div>
 
@@ -342,7 +380,7 @@ export default function ProfilePage() {
                         <button onClick={()=> {
                           if (window.confirm("Are you sure you want to delete this challenge?")) {
                             handleDelete(u.id, "challenges");
-                          }}} className="profile-delete-btn">🗑️</button>
+                          }}} className="profile-delete-btn">✕</button>
                       )}
                     </div>
                   </div>
@@ -357,13 +395,13 @@ export default function ProfilePage() {
             {mimicsLoading ? (
               <div className="profile-loading">
                 <div className="loading-spinner"></div>
-                <span>Loading mimics...</span>
+                <span>Loading matches...</span>
               </div>
             ) : mimics.length === 0 ? (
               <div className="profile-empty-state">
                 <div className="profile-empty-icon">🎯</div>
-                <div className="profile-empty-title">No mimics yet</div>
-                <div className="profile-empty-description">Join a challenge and submit your mimic!</div>
+                <div className="profile-empty-title">No matches yet</div>
+                <div className="profile-empty-description">Join a challenge and submit your match(a)!</div>
               </div>
             ) : (
               <div className="profile-video-grid">
@@ -380,14 +418,19 @@ export default function ProfilePage() {
                     </div>
                     <h3 className="profile-video-title">{m.challenges?.title}</h3>
                       <div className="profile-video-actions">
-                      <p className="profile-video-score">⭐ {m.score?.toFixed(1)}%</p>
+                      <div className="profile-video-stats">
+                        <p className="profile-video-score">⭐ {m.score?.toFixed(1)}%</p>
+                        {m.pp_earned > 0 && (
+                          <p className="profile-video-pp">+{m.pp_earned} PP</p>
+                        )}
+                      </div>
                       {!viewingOther && (
                         <button onClick={(e) => {
                           e.stopPropagation();
                           if (window.confirm("Are you sure you want to delete this mimic?")) {
                             handleDelete(m.id, "scores");
                           }
-                          }} className="profile-delete-btn">🗑️</button>
+                          }} className="profile-delete-btn">✕</button>
                       )}
                     </div>
                     

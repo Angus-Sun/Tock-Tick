@@ -445,9 +445,23 @@
   letter-spacing: 0.4px;
 }
 
+.profile-video-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
 .profile-video-score {
   font-size: 0.7rem;
   color: #d9f6d9;
+  font-weight: 600;
+  margin: 0;
+}
+
+.profile-video-pp {
+  font-size: 0.65rem;
+  color: #9dd49d;
   font-weight: 600;
   margin: 0;
 }
@@ -478,18 +492,25 @@
   align-self: center;
   text-align: center;
   text-decoration: none;
-  background: #ff0000;
-  color: #eaffea;
-  padding: 6px 12px;
-  font-size: 0.8rem;
-  font-weight: 700;
-  border-radius: 10px;
-  transition: background 0.25s ease, transform 0.25s ease;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  padding: 4px 8px;
+  font-size: 1.2rem;
+  font-weight: 300;
+  border: none;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  cursor: pointer;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .profile-delete-btn:hover {
-  background: #ff0000;
-  transform: translateY(-2px);
+  background: rgba(255, 70, 70, 0.1);
+  color: #ff5555;
+  transform: scale(1.1);
 }
 
 .profile-compete-btn:hover {
