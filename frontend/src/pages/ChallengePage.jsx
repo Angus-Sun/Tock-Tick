@@ -3,9 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../utils/supabaseClient.js";
 import { v4 as uuidv4 } from "uuid";
 import Leaderboard from "../components/Leaderboard.jsx";
-import ScoreDisplay from "../components/ScoreDisplay.jsx";
 import usePoseDetection from "../hooks/usePoseDetection.js";
-import { calculateScore, submitScore, calculateBasicScore, calculateBasicPP } from "../utils/scoringAPI.js";
 import "./ChallengePage.css";
 
 export default function ChallengePage() {
@@ -18,8 +16,6 @@ export default function ChallengePage() {
   const [recordedUrl, setRecordedUrl] = useState(null);
   const [countdown, setCountdown] = useState(null);
   const [finalScore, setFinalScore] = useState(null);
-  const [detailedScoreData, setDetailedScoreData] = useState(null);
-  const [showScoreDisplay, setShowScoreDisplay] = useState(false);
   const [poseReady, setPoseReady] = useState(false);
   const [poseInitializing, setPoseInitializing] = useState(true);
 
@@ -32,26 +28,13 @@ export default function ChallengePage() {
   const recordedVideoRef = useRef(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  // Custom control state: challenge video
-  const [challengeTime, setChallengeTime] = useState(0);
-  const [challengeDuration, setChallengeDuration] = useState(0);
-  const [challengePaused, setChallengePaused] = useState(true);
-  const [challengeMuted, setChallengeMuted] = useState(false);
-
-  // Custom control state: recorded preview video
-  const [recordedTime, setRecordedTime] = useState(0);
-  const [recordedDuration, setRecordedDuration] = useState(0);
-  const [recordedPaused, setRecordedPaused] = useState(true);
-  const [recordedMuted, setRecordedMuted] = useState(true);
-
   // Pose detection hook  - reference sequence will be set from challenge.reference_sequence
   const { currentScore, perStepScores, isRunning, start: startPose, stop: stopPose, reset: resetPose } = usePoseDetection({
     videoRef,
     referenceSequence: challenge?.reference_sequence || [],
     threshold: 0.75,
     hold: 4,
-    // Use the challenge's suggested auto-skip (set at upload time) or default to 0.1s per step
-    autoSkip: (challenge && challenge.suggested_auto_skip) ? challenge.suggested_auto_skip : 0.1,
+    autoSkip: 0, // Disable auto-skip, manual progression
     disableAdvancement: false,
     onResult: (r) => {
       // First successful pose frame => mark ready
@@ -220,69 +203,6 @@ export default function ChallengePage() {
     }
   }, [recordedBlob]);
 
-  // Bind challenge video events for custom controls
-  useEffect(() => {
-    const v = challengeVideoRef.current;
-    if (!v) return;
-    const onLoadedMeta = () => setChallengeDuration(v.duration || 0);
-    const onTimeUpdate = () => setChallengeTime(v.currentTime || 0);
-    const onPlay = () => setChallengePaused(false);
-    const onPause = () => setChallengePaused(true);
-    const onVol = () => setChallengeMuted(!!v.muted);
-    v.addEventListener('loadedmetadata', onLoadedMeta);
-    v.addEventListener('timeupdate', onTimeUpdate);
-    v.addEventListener('play', onPlay);
-    v.addEventListener('pause', onPause);
-    v.addEventListener('volumechange', onVol);
-    // Initialize current states
-    if (!isNaN(v.duration)) setChallengeDuration(v.duration || 0);
-    setChallengeTime(v.currentTime || 0);
-    setChallengePaused(v.paused);
-    setChallengeMuted(!!v.muted);
-    return () => {
-      v.removeEventListener('loadedmetadata', onLoadedMeta);
-      v.removeEventListener('timeupdate', onTimeUpdate);
-      v.removeEventListener('play', onPlay);
-      v.removeEventListener('pause', onPause);
-      v.removeEventListener('volumechange', onVol);
-    };
-  }, [challenge?.video_url]);
-
-  // Bind recorded preview video events for custom controls
-  useEffect(() => {
-    const v = recordedVideoRef.current;
-    if (!v) return;
-    const onLoadedMeta = () => setRecordedDuration(v.duration || 0);
-    const onTimeUpdate = () => setRecordedTime(v.currentTime || 0);
-    const onPlay = () => setRecordedPaused(false);
-    const onPause = () => setRecordedPaused(true);
-    const onVol = () => setRecordedMuted(!!v.muted);
-    v.addEventListener('loadedmetadata', onLoadedMeta);
-    v.addEventListener('timeupdate', onTimeUpdate);
-    v.addEventListener('play', onPlay);
-    v.addEventListener('pause', onPause);
-    v.addEventListener('volumechange', onVol);
-    // Initialize current states
-    if (!isNaN(v.duration)) setRecordedDuration(v.duration || 0);
-    setRecordedTime(v.currentTime || 0);
-    setRecordedPaused(v.paused);
-    setRecordedMuted(!!v.muted);
-    return () => {
-      v.removeEventListener('loadedmetadata', onLoadedMeta);
-      v.removeEventListener('timeupdate', onTimeUpdate);
-      v.removeEventListener('play', onPlay);
-      v.removeEventListener('pause', onPause);
-      v.removeEventListener('volumechange', onVol);
-    };
-  }, [recordedUrl]);
-
-  const formatTime = (t) => {
-    if (!isFinite(t)) return '0:00';
-    const m = Math.floor(t / 60);
-    const s = Math.floor(t % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  };
-
   // Start pose engine once camera + challenge reference sequence available
   useEffect(() => {
     if (!poseReady && !isRunning && videoRef.current && challenge?.reference_sequence) {
@@ -420,7 +340,7 @@ export default function ChallengePage() {
     }
   };
 
-  const stopRecording = async () => {
+  const stopRecording = () => {
     if (mediaRecorderRef.current?.state === "recording") {
       mediaRecorderRef.current.stop();
       setRecording(false);
@@ -428,200 +348,94 @@ export default function ChallengePage() {
       // Stop pose detection
       stopPose();
       
-      // Calculate comprehensive score using backend
-      setTimeout(async () => {
-        try {
-          const currentScores = scoresRef.current;
-          console.log("Calculating comprehensive score from:", currentScores);
-          
-          if (!currentScores || currentScores.length === 0) {
-            console.warn("No pose scores recorded");
-            setFinalScore(0);
-            return;
-          }
-
-          // Get current user for scoring calculation
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) {
-            console.warn("No user found for scoring");
-            setFinalScore(calculateBasicScore(currentScores));
-            return;
-          }
-
-          // Prepare performance data for backend scoring
-          const performanceData = {
-            stepScores: currentScores,
-            timingData: [], // We can enhance this later with timing data
-            referenceSequence: challenge?.reference_sequence || [],
-            userPoses: [], // We can enhance this later with user pose data
-            challengeId: id,
-            userId: user.id
-          };
-
-          // Try to use backend scoring, fall back to basic calculation
-          let scoreData;
-          try {
-            scoreData = await calculateScore(performanceData);
-            console.log("Backend scoring result:", scoreData);
-          } catch (error) {
-            console.warn("Backend scoring failed, using fallback:", error);
-            // Fallback to basic scoring
-            const basicScore = calculateBasicScore(currentScores);
-            const basicPP = calculateBasicPP(basicScore, 'BEGINNER');
-            
-            scoreData = {
-              finalScore: basicScore,
-              breakdown: {
-                accuracy: basicScore,
-                consistency: Math.max(0, basicScore - 10),
-                timing: Math.max(0, basicScore - 5),
-                style: Math.max(0, basicScore - 15)
-              },
-              difficulty: 'BEGINNER',
-              difficultyMultiplier: 1.0,
-              metadata: {
-                totalSteps: currentScores.length,
-                validSteps: currentScores.filter(s => s > 0).length,
-                averageStepScore: basicScore
-              },
-              ppData: {
-                totalPP: basicPP,
-                breakdown: {
-                  basePP: basicPP,
-                  difficultyBonus: 0,
-                  improvementBonus: 0,
-                  streakBonus: 0,
-                  excellenceBonus: 0
-                },
-                metadata: {
-                  isPersonalBest: false,
-                  scoreImprovement: 0,
-                  difficultyLevel: 'BEGINNER'
-                }
-              }
-            };
-          }
-
-          setFinalScore(scoreData.finalScore);
-          setDetailedScoreData(scoreData);
-          setShowScoreDisplay(true);
-          
-        } catch (error) {
-          console.error("Error in score calculation:", error);
-          // Final fallback
-          const basicScore = calculateBasicScore(scoresRef.current);
-          setFinalScore(basicScore);
+      // Calculate overall accuracy from perStepScores
+      // Use setTimeout to ensure state has updated after stopPose
+      setTimeout(() => {
+        // Use the ref to get the latest scores (not stale closure value)
+        const currentScores = scoresRef.current;
+        
+        console.log("Calculating final score from scoresRef:", currentScores);
+        
+        if (currentScores && currentScores.length > 0) {
+          const avg = currentScores.reduce((a, b) => a + (b || 0), 0) / currentScores.length;
+          const score = Math.round(avg * 100);
+          setFinalScore(score);
+          console.log("Final calculated score:", score, "from", currentScores.length, "steps", currentScores);
+        } else {
+          setFinalScore(0);
+          console.warn("No pose scores recorded - scoresRef was empty");
         }
       }, 500);
     }
   };
 
   const handleUploadMimic = async () => {
-    if (!recordedBlob) {
+    if (!recordedBlob)
       return alert("Record a video first!");
-    }
-
-    if (!detailedScoreData) {
-      return alert("Score calculation is not complete. Please try again.");
-    }
 
     setUploading(true);
 
-    try {
-      // Check session
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    // check session
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
 
-      if (sessionError || !session) {
-        setUploading(false);
-        navigate("/login");
-        return;
-      }
-
-      const userId = session.user.id;
-      
-      // Fetch user's profile to get username for display
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('id', userId)
-        .single();
-      
-      const playerName = profileData?.username || session.user.email;
-
-      // Upload video to storage
-      const fileName = `mimics/${uuidv4()}.webm`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from("videos")
-        .upload(fileName, recordedBlob, { contentType: "video/webm" });
-
-      if (uploadError) {
-        throw new Error("Upload failed: " + uploadError.message);
-      }
-
-      const { data: publicData } = supabase.storage
-        .from("videos")
-        .getPublicUrl(uploadData.path);
-
-      // Prepare submission data
-      const submissionData = {
-        challengeId: id,
-        userId: userId,
-        playerName: playerName,
-        mimicUrl: publicData.publicUrl,
-        scoreData: detailedScoreData,
-        ppData: detailedScoreData.ppData
-      };
-
-      // Try to submit via backend API
-      try {
-        const result = await submitScore(submissionData);
-        console.log("Backend submission successful:", result);
-        
-        alert(`✅ Mimic uploaded successfully! Score: ${detailedScoreData.finalScore}% (+${detailedScoreData.ppData?.totalPP || 0} PP)`);
-        
-      } catch (backendError) {
-        console.warn("Backend submission failed, using direct database:", backendError);
-        
-        // Fallback to direct database insertion
-        const { error: dbError } = await supabase.from("scores").insert([
-          {
-            challenge_id: id,
-            player: playerName,
-            player_id: userId,
-            score: detailedScoreData.finalScore,
-            mimic_url: publicData.publicUrl,
-            accuracy_score: detailedScoreData.breakdown?.accuracy || 0,
-            consistency_score: detailedScoreData.breakdown?.consistency || 0,
-            timing_score: detailedScoreData.breakdown?.timing || 0,
-            style_score: detailedScoreData.breakdown?.style || 0,
-            difficulty_level: detailedScoreData.difficulty || 'BEGINNER',
-            difficulty_multiplier: detailedScoreData.difficultyMultiplier || 1.0,
-            total_steps: detailedScoreData.metadata?.totalSteps || 0,
-            valid_steps: detailedScoreData.metadata?.validSteps || 0,
-            pp_earned: detailedScoreData.ppData?.totalPP || 0,
-            is_personal_best: detailedScoreData.ppData?.metadata?.isPersonalBest || false
-          },
-        ]);
-
-        if (dbError) {
-          throw new Error("Error saving score: " + dbError.message);
-        }
-        
-        alert(`✅ Mimic uploaded successfully! Score: ${detailedScoreData.finalScore}%`);
-      }
-
-      // Reset for next recording
-      setFinalScore(null);
-      setDetailedScoreData(null);
-      setShowScoreDisplay(false);
-
-    } catch (error) {
-      console.error("Upload error:", error);
-      alert("Failed to upload mimic: " + error.message);
-    } finally {
+    if (sessionError || !session) {
       setUploading(false);
+      navigate("/login");
+      return;
     }
-  };  if (!challenge) return <p>Loading...</p>;
+
+    const userId = session.user.id;
+    
+    // Fetch user's profile to get username for display
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('username')
+      .eq('id', userId)
+      .single();
+    
+    const playerName = profileData?.username || session.user.email;
+
+    // upload to storage
+    const fileName = `mimics/${uuidv4()}.webm`;
+    const { data, error: uploadError } = await supabase.storage
+      .from("videos")
+      .upload(fileName, recordedBlob, { contentType: "video/webm" });
+
+    if (uploadError) {
+      alert("Upload failed: " + uploadError.message);
+      setUploading(false);
+      return;
+    }
+
+    const { data: publicData } = supabase.storage
+      .from("videos")
+      .getPublicUrl(data.path);
+
+    // save score row - use calculated score from pose detection
+    const scoreToSave = finalScore !== null ? finalScore : 0;
+    console.log("Saving score to database:", scoreToSave);
+    
+    const { error: dbError } = await supabase.from("scores").insert([
+      {
+        challenge_id: id,
+        player: playerName,
+        player_id: userId,
+        score: scoreToSave,
+        mimic_url: publicData.publicUrl,
+      },
+    ]);
+
+    if (dbError) alert("Error saving score: " + dbError.message);
+    else alert(`✅ Mimic uploaded successfully! Score: ${scoreToSave}%`);
+
+    setUploading(false);
+    setFinalScore(null); // Reset for next recording
+  };
+
+  if (!challenge) return <p>Loading...</p>;
 
   return (
     <div className="challenge">
@@ -637,31 +451,8 @@ export default function ChallengePage() {
             ref={challengeVideoRef}
             className="pane__video"
             src={challenge.video_url}
-            playsInline
+            controls
           />
-          <div className="video-controls">
-            <button onClick={() => {
-              const v = challengeVideoRef.current; if (!v) return;
-              if (v.paused) v.play(); else v.pause();
-            }}>{challengePaused ? 'Play' : 'Pause'}</button>
-            <input
-              type="range"
-              min={0}
-              max={challengeDuration || 0}
-              step={0.01}
-              value={challengeTime}
-              onChange={(e) => {
-                const v = challengeVideoRef.current; if (!v) return;
-                const val = parseFloat(e.target.value);
-                v.currentTime = val; setChallengeTime(val);
-              }}
-            />
-            <button onClick={() => {
-              const v = challengeVideoRef.current; if (!v) return;
-              v.muted = !v.muted;
-            }}>{challengeMuted ? 'Unmute' : 'Mute'}</button>
-            <div className="video-time">{formatTime(challengeTime)} / {formatTime(challengeDuration)}</div>
-          </div>
         </div>
 
         <div className="pane__right">
@@ -674,6 +465,7 @@ export default function ChallengePage() {
                   key={recordedUrl}
                   ref={recordedVideoRef}
                   src={recordedUrl}
+                  controls
                   autoPlay
                   muted
                   playsInline
@@ -685,29 +477,6 @@ export default function ChallengePage() {
                   }}
                   onError={() => setPreviewLoading(false)}
                 />
-                <div className="video-controls">
-                  <button onClick={() => {
-                    const v = recordedVideoRef.current; if (!v) return;
-                    if (v.paused) v.play(); else v.pause();
-                  }}>{recordedPaused ? 'Play' : 'Pause'}</button>
-                  <input
-                    type="range"
-                    min={0}
-                    max={recordedDuration || 0}
-                    step={0.01}
-                    value={recordedTime}
-                    onChange={(e) => {
-                      const v = recordedVideoRef.current; if (!v) return;
-                      const val = parseFloat(e.target.value);
-                      v.currentTime = val; setRecordedTime(val);
-                    }}
-                  />
-                  <button onClick={() => {
-                    const v = recordedVideoRef.current; if (!v) return;
-                    v.muted = !v.muted;
-                  }}>{recordedMuted ? 'Unmute' : 'Mute'}</button>
-                  <div className="video-time">{formatTime(recordedTime)} / {formatTime(recordedDuration)}</div>
-                </div>
                 {previewLoading && (
                   <div style={{ position:'absolute',left:0,top:0,width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.4)',fontSize:'0.9rem',color:'#9dd49d' }}>
                     Preparing preview…
@@ -769,30 +538,10 @@ export default function ChallengePage() {
           {!recording ? (
             recordedUrl ? (
               <>
-                {finalScore !== null && detailedScoreData && (
+                {finalScore !== null && (
                   <div style={{ padding: '12px', background: 'rgba(59, 122, 59, 0.15)', borderRadius: '10px', color: '#d9f6d9', marginBottom: '12px', textAlign: 'center' }}>
                     <div style={{ fontSize: '0.9rem' }}>Your Score</div>
                     <div style={{ fontSize: '2rem', fontWeight: '800' }}>{finalScore}%</div>
-                    {detailedScoreData.ppData?.totalPP && (
-                      <div style={{ fontSize: '0.8rem', color: '#4ade80', marginTop: '4px' }}>
-                        +{detailedScoreData.ppData.totalPP} PP earned
-                      </div>
-                    )}
-                    <button 
-                      style={{ 
-                        background: 'transparent', 
-                        border: '1px solid #4ade80', 
-                        color: '#4ade80', 
-                        padding: '4px 12px', 
-                        borderRadius: '6px', 
-                        fontSize: '0.8rem', 
-                        marginTop: '8px',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => setShowScoreDisplay(true)}
-                    >
-                      View Details
-                    </button>
                   </div>
                 )}
                 <button className="btn" disabled={uploading} onClick={handleUploadMimic}>
@@ -853,14 +602,6 @@ export default function ChallengePage() {
       <div className="challenge__leaderboard">
         <Leaderboard challenge={challenge} />
       </div>
-
-      {/* Score Display Modal */}
-      <ScoreDisplay 
-        scoreData={detailedScoreData}
-        isVisible={showScoreDisplay}
-        showDetails={true}
-        onClose={() => setShowScoreDisplay(false)}
-      />
     </div>
   );
 }

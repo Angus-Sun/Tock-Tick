@@ -164,8 +164,7 @@ export default function usePoseDetection({
 								wsum += shoulderSpreadWeight;
 								sim = wsum ? sum / wsum : 0;
 
-								// Motion penalty: if the reference is moving between consecutive steps but the
-								// user is not moving, reduce similarity so standing still doesn't score highly.
+								// Motion penalty: detect if user is sitting still vs actually dancing
 								try {
 									const prevTarget = referenceSequence && referenceSequence[Math.max(0, stepRef.current - 1)];
 									let refMotion = 0;
@@ -195,14 +194,29 @@ export default function usePoseDetection({
 									userMotion = c2 ? s2 / c2 : 0;
 								}
 
-								// Strong penalty if reference is moving but user is not
-								if (refMotion > 0.02 && userMotion < Math.max(0.004, refMotion * 0.4)) {
-									sim *= 0.35;
-								}
-								
-								// Additional penalty: if user is completely still (very low motion), score should be near zero
-								if (userMotion < 0.003) {
-									sim *= 0.1; // Reduce to 10% if barely moving
+								// Aggressive stillness detection: if user is barely moving, heavily penalize
+								// UNLESS they match the pose very well (>0.7)
+								if (userMotion < 0.002) {
+									// User is essentially frozen
+									if (sim < 0.7) {
+										// Frozen in wrong pose = very bad
+										sim *= 0.05; // 95% penalty
+									} else {
+										// Frozen but in correct pose = still penalize but less harshly
+										sim *= 0.5; // 50% penalty
+									}
+								} else if (userMotion < 0.005) {
+									// User is moving very little
+									if (sim < 0.6) {
+										// Low motion + wrong pose = bad
+										sim *= 0.2; // 80% penalty
+									} else if (refMotion > 0.02) {
+										// Reference is moving but user isn't keeping up
+										sim *= 0.6; // 40% penalty
+									}
+								} else if (refMotion > 0.03 && userMotion < refMotion * 0.3) {
+									// Reference is moving significantly but user is too slow
+									sim *= 0.4; // 60% penalty
 								}
 								} catch (e) {}
 
