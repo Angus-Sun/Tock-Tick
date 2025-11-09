@@ -198,9 +198,10 @@
   font-size: 4rem;
   font-weight: 800;
   border-radius: 12px;
-  z-index: 10;
+  z-index: 5;
   animation: pulse 1s ease-in-out infinite;
   overflow: hidden; /* Prevent text overflow */
+  pointer-events: none; /* Allow clicks to pass through to navbar */
 }
 
 .score-overlay {
@@ -215,8 +216,9 @@
   font-weight: 700;
   border-radius: 8px;
   border: 1px solid rgba(59, 122, 59, 0.5);
-  z-index: 5;
+  z-index: 3;
   animation: fadeIn 0.3s ease;
+  pointer-events: none; /* Allow clicks to pass through to navbar */
 }
 
 .btn-stop {

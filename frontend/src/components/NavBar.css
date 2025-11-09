@@ -8,7 +8,8 @@
   border-bottom: 1px solid rgba(255,255,255,0.06);
   position: fixed;
   top: 0; left: 0; right: 0;
-  z-index: 1000;
+  z-index: 10000; /* ensure navbar stays above videos/overlays */
+  pointer-events: auto; /* guarantee clicks are accepted here */
   display: flex;
   justify-content: center;
   animation: navFade 500ms ease;
