@@ -241,8 +241,8 @@ begin
     elsif new_total_pp >= 7500 then rank_tier := 'MASTER';
     elsif new_total_pp >= 5000 then rank_tier := 'EXPERT';
     elsif new_total_pp >= 2500 then rank_tier := 'ADVANCED';
-    elsif new_total_pp >= 1000 then rank_tier := 'INTERMEDIATE';
-    elsif new_total_pp >= 250 then rank_tier := 'BEGINNER';
+    elsif new_total_pp >= 1000 then rank_tier := 'BEGINNER';
+    elsif new_total_pp >= 250 then rank_tier := 'INTERMEDIATE';
     else rank_tier := 'NOVICE';
     end if;
 

@@ -31,8 +31,8 @@ export default function ProfilePage() {
       'MASTER': '💎',
       'EXPERT': '🔥',
       'ADVANCED': '⭐',
-      'INTERMEDIATE': '🌟',
-      'BEGINNER': '🌱',
+      'BEGINNER': '�',
+      'INTERMEDIATE': '�',
       'NOVICE': '🌸'
     };
     return icons[tier] || '🌸';
@@ -44,8 +44,8 @@ export default function ProfilePage() {
       'MASTER': '#E6E6FA',
       'EXPERT': '#FF6B47',
       'ADVANCED': '#4ECDC4',
-      'INTERMEDIATE': '#45B7D1',
       'BEGINNER': '#96CEB4',
+      'INTERMEDIATE': '#45B7D1',
       'NOVICE': '#FECA57'
     };
     return colors[tier] || '#FECA57';

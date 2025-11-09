@@ -55,8 +55,8 @@ begin
         when total_pp >= 7500 then 'MASTER'
         when total_pp >= 5000 then 'EXPERT'
         when total_pp >= 2500 then 'ADVANCED'
-        when total_pp >= 1000 then 'INTERMEDIATE'
-        when total_pp >= 250 then 'BEGINNER'
+        when total_pp >= 1000 then 'BEGINNER'
+        when total_pp >= 250 then 'INTERMEDIATE'
         else 'NOVICE'
       end as rank_tier
     from public.user_stats

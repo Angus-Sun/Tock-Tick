@@ -11,17 +11,41 @@ export default function GlobalLeaderboard() {
   const [userLoading, setUserLoading] = useState(true);
   const navigate = useNavigate();
   const observerRef = useRef(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    // Scroll to top when component mounts
-    window.scrollTo(0, 0);
-    
     const initializeData = async () => {
-      await fetchCurrentUser();
-      await fetchLeaderboard();
+      try {
+        setUserLoading(true);
+        setLoading(true);
+        
+        await fetchCurrentUser();
+        await fetchLeaderboard();
+        
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (err) {
+        console.error("Error initializing leaderboard:", err);
+        setError("Failed to load leaderboard");
+      } finally {
+        setLoading(false);
+        setUserLoading(false);
+      }
     };
+
     initializeData();
-    
+
+    // Subscribe to real-time updates on global_leaderboard
+    const subscription = supabase
+      .channel('leaderboard-changes')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'global_leaderboard' },
+        (payload) => {
+          console.log('Leaderboard updated:', payload);
+          fetchLeaderboard(); // Refresh leaderboard when changes occur
+        }
+      )
+      .subscribe();
+
     // Intersection Observer for fade-in animations
     observerRef.current = new IntersectionObserver(
       (entries) => {
@@ -35,6 +59,7 @@ export default function GlobalLeaderboard() {
     );
 
     return () => {
+      subscription.unsubscribe();
       if (observerRef.current) {
         observerRef.current.disconnect();
       }
@@ -116,8 +141,8 @@ export default function GlobalLeaderboard() {
       'MASTER': '#E6E6FA',
       'EXPERT': '#FF6B47',
       'ADVANCED': '#4ECDC4',
-      'INTERMEDIATE': '#45B7D1',
       'BEGINNER': '#96CEB4',
+      'INTERMEDIATE': '#45B7D1',
       'NOVICE': '#FECA57'
     };
     return colors[tier] || '#FECA57';
@@ -129,8 +154,8 @@ export default function GlobalLeaderboard() {
       'MASTER': '💎',
       'EXPERT': '🔥',
       'ADVANCED': '⭐',
-      'INTERMEDIATE': '🌟',
-      'BEGINNER': '🌱',
+      'BEGINNER': '�',
+      'INTERMEDIATE': '�',
       'NOVICE': '🌸'
     };
     return icons[tier] || '🌸';

@@ -312,13 +312,13 @@ function calculatePerformancePoints(scoreData, playerHistory = {}) {
  * @returns {Object} Rank information
  */
 function getPlayerRank(totalPP) {
-  if (totalPP >= 10000) return { tier: 'LEGEND', name: 'Legend', color: '#FFD700' };
-  if (totalPP >= 7500) return { tier: 'MASTER', name: 'Master', color: '#E6E6FA' };
-  if (totalPP >= 5000) return { tier: 'EXPERT', name: 'Expert', color: '#FF6B47' };
-  if (totalPP >= 2500) return { tier: 'ADVANCED', name: 'Advanced', color: '#4ECDC4' };
-  if (totalPP >= 1000) return { tier: 'INTERMEDIATE', name: 'Intermediate', color: '#45B7D1' };
-  if (totalPP >= 250) return { tier: 'BEGINNER', name: 'Beginner', color: '#96CEB4' };
-  return { tier: 'NOVICE', name: 'Novice', color: '#FECA57' };
+  if (totalPP >= 10000) return { tier: 'Legend', color: '#FFD700' };
+  if (totalPP >= 5000) return { tier: 'Master', color: '#E5E4E2' };
+  if (totalPP >= 2500) return { tier: 'Expert', color: '#CD7F32' };
+  if (totalPP >= 1000) return { tier: 'Advanced', color: '#4169E1' };
+  if (totalPP >= 500) return { tier: 'Intermediate', color: '#32CD32' };
+  if (totalPP >= 100) return { tier: 'Novice', color: '#A9A9A9' }; 
+  return { tier: 'Beginner', color: '#FFA500' }; 
 }
 
 /**
