@@ -1,15 +1,13 @@
-import React, { useState } from "react";
-import fallbackSvg from "../assets/matcha-dance-logo.JPG";
+import React from "react";
 
-// Tries to load your provided PNG from the public folder, falls back to SVG if missing
+// Use image.png from public as the primary logo
+// In Vite, files in /public are served at the root: /image.png
 export default function Logo({ className = "nav-logo-img" }) {
-  const [src, setSrc] = useState("/matcha-dance.png");
   return (
     <img
-      src={src}
+      src="/image.png"
       alt="MatchA Dance logo"
       className={className}
-      onError={() => setSrc(fallbackSvg)}
       decoding="async"
       loading="eager"
     />
