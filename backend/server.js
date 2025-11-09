@@ -267,6 +267,7 @@ app.post('/api/submit-score', async (req, res) => {
           const { data: updatedStats, error: updateError } = await supabase
             .from('user_stats')
             .update({
+              display_name: playerName,
               total_pp: newTotal,
               total_plays: prevPlays + 1,
               last_played: new Date().toISOString(),
