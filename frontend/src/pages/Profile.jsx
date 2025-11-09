@@ -21,6 +21,8 @@ export default function ProfilePage() {
   const [ranking, setRanking] = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [profileUser, setProfileUser] = useState(null);
+  const [uploadsLoading, setUploadsLoading] = useState(true);
+  const [mimicsLoading, setMimicsLoading] = useState(true);
 
   // Helper functions for tier display
   const getTierIcon = (tier) => {
@@ -49,6 +51,15 @@ export default function ProfilePage() {
     return colors[tier] || '#FECA57';
   };
 
+  const getOrdinalSuffix = (num) => {
+    const j = num % 10;
+    const k = num % 100;
+    if (j === 1 && k !== 11) return num + "st";
+    if (j === 2 && k !== 12) return num + "nd";
+    if (j === 3 && k !== 13) return num + "rd";
+    return num + "th";
+  };
+
   async function handleDelete(id, table) {
   const { error } = await supabase
     .from(table)
@@ -66,35 +77,49 @@ export default function ProfilePage() {
 }
 
   const uploadAvatar = async (file) => {
-  // Disallow avatar upload when viewing someone else's profile
-  if (viewingOther) return;
-  if (!file || !user) return;
-  setUploading(true);
-  const ext = file.name.includes('.') ? file.name.split('.').pop() : 'png';
-  const filePath = `${user.id}/${Date.now()}.${ext}`;
+    // Disallow avatar upload when viewing someone else's profile
+    if (viewingOther) return;
+    if (!file || !user) return;
+    
+    setUploading(true);
+    
+    try {
+      const ext = file.name.includes('.') ? file.name.split('.').pop() : 'png';
+      const filePath = `${user.id}/${Date.now()}.${ext}`;
 
-  const { data: uploadData, error: uploadErr } = await supabase.storage
-    .from('avatars')
-    .upload(filePath, file, { cacheControl: '3600', upsert: true });
+      // Upload to storage
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { cacheControl: '3600', upsert: true });
 
-  if (uploadErr) { alert(`Upload failed: ${uploadErr.message}`); setUploading(false); return; }
+      if (uploadErr) throw uploadErr;
 
-  const { data: publicData } = supabase.storage.from('avatars').getPublicUrl(filePath);
-  const publicUrl = publicData?.publicUrl;
+      // Get public URL
+      const { data: publicData } = supabase.storage.from('avatars').getPublicUrl(filePath);
+      const publicUrl = publicData?.publicUrl;
 
-  // upsert profile (id must equal auth.uid())
-  const { data: profileData, error: dbErr } = await supabase.from('profiles').upsert([
-    { id: user.id, username, avatar_url: publicUrl, updated_at: new Date().toISOString() }
-  ], { onConflict: 'id' }).select().single();
+      if (!publicUrl) throw new Error('Failed to get public URL');
 
-  if (dbErr) alert(dbErr.message);
-  else {
-    alert('Profile updated');
-    setProfile(profileData);  // Update profile state locally
-    window.location.reload();  // Refresh to apply changes
-  }
-  setUploading(false);
-};
+      // Update profile in database
+      const { data: profileData, error: dbErr } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl, updated_at: new Date().toISOString() })
+        .eq('id', user.id)
+        .select()
+        .single();
+
+      if (dbErr) throw dbErr;
+
+      // Update local state
+      setProfile(profileData);
+      alert('Profile picture updated!');
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert(`Upload failed: ${error.message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
 
 
   const saveUsername = async () => {
@@ -103,18 +128,35 @@ export default function ProfilePage() {
       navigate('/login');
       return;
     }
-    const { data, error } = await supabase.from('profiles').upsert([
-      { id: user.id, username, updated_at: new Date().toISOString() }
-    ], { onConflict: 'id' }).select().single();
+    const { data, error } = await supabase.from('profiles').update(
+      { username, updated_at: new Date().toISOString() }
+    ).eq('id', user.id).select().single();
     
-    if (error) alert(error.message);
-    else {
-      alert('Saved');
+    if (error) {
+      alert(error.message);
+    } else {
       setProfile(data);
+      setUsername(data.username);
+      setIsEditing(false);
+      
+      // Update just this user's entry in the global leaderboard (faster than rebuilding entire leaderboard)
+      try {
+        const { error: lbError } = await supabase
+          .from('global_leaderboard')
+          .update({ username: data.username, last_updated: new Date().toISOString() })
+          .eq('user_id', user.id);
+        
+        if (lbError) {
+          console.error('Failed to update leaderboard username:', lbError);
+        }
+      } catch (err) {
+        console.error('Error updating leaderboard:', err);
+      }
     }
   };
 
   const fetchUploads = async () => {
+    setUploadsLoading(true);
     const { data, error } = await supabase
       .from('challenges')
       .select('*')
@@ -122,9 +164,11 @@ export default function ProfilePage() {
       .order('created_at', { ascending: false });
     if (error) console.error(error);
     else setUploads(data || []);
+    setUploadsLoading(false);
   };
 
   const fetchMimics = async () => {
+    setMimicsLoading(true);
     const { data, error } = await supabase
       .from('scores')
       .select('*, challenges(*)')
@@ -132,6 +176,7 @@ export default function ProfilePage() {
       .order('created_at', { ascending: false });
     if (error) console.error(error);
     else setMimics(data || []);
+    setMimicsLoading(false);
   };
 
   const fetchUserStats = async () => {
@@ -197,27 +242,38 @@ export default function ProfilePage() {
 
   // Guard: if not viewing other and auth user hasn't loaded yet, show loading
   if (!viewingOther && !user) {
-    return (
-      <div className="profile-container">
-        <div className="profile-loading">Loading profile...</div>
-      </div>
-    );
+    return null;
+  }
+
+  // Don't render until stats are loaded
+  if (statsLoading) {
+    return null;
   }
   return (
     <div className="profile-container">
       <div className="profile-header">
         <div className="profile-avatar">
-          {profile?.avatar_url ? (
-            <img src={profile.avatar_url} alt="avatar" />
+          {(viewingOther ? profileUser?.avatar_url : profile?.avatar_url) ? (
+            <img src={viewingOther ? profileUser.avatar_url : profile.avatar_url} alt="avatar" />
           ) : (
             <div className="profile-avatar-placeholder">
-              {(profile?.username || user?.email || '?')?.[0]?.toUpperCase()}
+              {((viewingOther ? profileUser?.username : profile?.username) || user?.email || '?')?.[0]?.toUpperCase()}
             </div>
           )}
-          {isEditing && (
+          {!viewingOther && isEditing && (
             <label className="profile-avatar-change">
-              Change
-              <input type="file" accept="image/*" onChange={e => uploadAvatar(e.target.files[0])} />
+              {uploading ? 'Uploading...' : 'Change'}
+              <input 
+                type="file" 
+                accept="image/*" 
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    uploadAvatar(file);
+                  }
+                }} 
+                disabled={uploading}
+              />
             </label>
           )}
         </div>
@@ -251,10 +307,6 @@ export default function ProfilePage() {
                 <div className="profile-stat-number">{userStats.total_pp}</div>
                 <div className="profile-stat-label">Total PP</div>
               </div>
-              <div className="profile-stat">
-                <div className="profile-stat-number">{userStats.average_score?.toFixed(1) || '0.0'}%</div>
-                <div className="profile-stat-label">Avg Score</div>
-              </div>
             </>
           )}
         </div>
@@ -271,7 +323,7 @@ export default function ProfilePage() {
             {ranking && (
               <div className="rank-position">
                 <span className="rank-text">#{ranking.rank_position}</span>
-                <span className="rank-percentile">Top {ranking.percentile}%</span>
+                <span className="rank-percentile">Top {getOrdinalSuffix(ranking.percentile)} percentile</span>
               </div>
             )}
             {userStats.current_streak > 0 && (
@@ -280,13 +332,6 @@ export default function ProfilePage() {
                 <span className="streak-text">{userStats.current_streak} streak</span>
               </div>
             )}
-          </div>
-        )}
-
-        {statsLoading && (
-          <div className="profile-stats-loading">
-            <div className="loading-spinner"></div>
-            <span>Loading stats...</span>
           </div>
         )}
         </div>
@@ -298,13 +343,18 @@ export default function ProfilePage() {
             🎬 Challenges
           </button>
           <button onClick={() => setActiveTab('mimics')} className={`profile-tab ${activeTab === 'mimics' ? 'active' : ''}`}>
-            🎯 Mimics
+            🎯 Matches
           </button>
         </div>
 
         {activeTab === 'uploads' && (
           <div>
-            {uploads.length === 0 ? (
+            {uploadsLoading ? (
+              <div className="profile-loading">
+                <div className="loading-spinner"></div>
+                <span>Loading challenges...</span>
+              </div>
+            ) : uploads.length === 0 ? (
               <div className="profile-empty-state">
                 <div className="profile-empty-icon">📹</div>
                 <div className="profile-empty-title">No challenges yet</div>
@@ -330,7 +380,7 @@ export default function ProfilePage() {
                         <button onClick={()=> {
                           if (window.confirm("Are you sure you want to delete this challenge?")) {
                             handleDelete(u.id, "challenges");
-                          }}} className="profile-delete-btn">🗑️</button>
+                          }}} className="profile-delete-btn">✕</button>
                       )}
                     </div>
                   </div>
@@ -342,11 +392,16 @@ export default function ProfilePage() {
 
         {activeTab === 'mimics' && (
           <div>
-            {mimics.length === 0 ? (
+            {mimicsLoading ? (
+              <div className="profile-loading">
+                <div className="loading-spinner"></div>
+                <span>Loading matches...</span>
+              </div>
+            ) : mimics.length === 0 ? (
               <div className="profile-empty-state">
                 <div className="profile-empty-icon">🎯</div>
-                <div className="profile-empty-title">No mimics yet</div>
-                <div className="profile-empty-description">Join a challenge and submit your mimic!</div>
+                <div className="profile-empty-title">No matches yet</div>
+                <div className="profile-empty-description">Join a challenge and submit your match(a)!</div>
               </div>
             ) : (
               <div className="profile-video-grid">
@@ -363,14 +418,19 @@ export default function ProfilePage() {
                     </div>
                     <h3 className="profile-video-title">{m.challenges?.title}</h3>
                       <div className="profile-video-actions">
-                      <p className="profile-video-score">⭐ {m.score?.toFixed(1)}%</p>
+                      <div className="profile-video-stats">
+                        <p className="profile-video-score">⭐ {m.score?.toFixed(1)}%</p>
+                        {m.pp_earned > 0 && (
+                          <p className="profile-video-pp">+{m.pp_earned} PP</p>
+                        )}
+                      </div>
                       {!viewingOther && (
                         <button onClick={(e) => {
                           e.stopPropagation();
                           if (window.confirm("Are you sure you want to delete this mimic?")) {
                             handleDelete(m.id, "scores");
                           }
-                          }} className="profile-delete-btn">🗑️</button>
+                          }} className="profile-delete-btn">✕</button>
                       )}
                     </div>
                     

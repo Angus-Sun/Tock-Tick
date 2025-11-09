@@ -8,7 +8,11 @@ export default function Home() {
   const [challenges, setChallenges] = useState([]);
   const [showEmptyMessage, setShowEmptyMessage] = useState(false);
 
-  useEffect(() => { fetchChallenges(); }, []);
+  useEffect(() => {
+    // Scroll to top when component mounts
+    window.scrollTo(0, 0);
+    fetchChallenges();
+  }, []);
 
   // Delay showing empty message to avoid flash
   useEffect(() => {

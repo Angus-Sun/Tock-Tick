@@ -85,11 +85,11 @@
 
 /* Custom video controls (unmirrored) */
 .video-controls {
-  max-width: 280px;
+  max-width: 350px;
   margin: 8px auto 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   font-size: 0.7rem;
   background: #141414;
   padding: 6px 10px;
@@ -121,9 +121,11 @@
 }
 
 .video-time {
-  min-width: 50px;
+  min-width: 70px;
   text-align: right;
   color: #8b938b;
+  white-space: nowrap;
+  font-size: 0.65rem;
 }
 
   /* Mirror pose overlay canvas */

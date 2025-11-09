@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "../utils/supabaseClient.js";
 import { useNavigate } from "react-router-dom";
 import "./GlobalLeaderboard.css";
@@ -8,19 +8,57 @@ export default function GlobalLeaderboard() {
   const [loading, setLoading] = useState(true);
   const [userRank, setUserRank] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [userLoading, setUserLoading] = useState(true);
   const navigate = useNavigate();
+  const observerRef = useRef(null);
 
   useEffect(() => {
-    fetchLeaderboard();
-    fetchCurrentUser();
+    // Scroll to top when component mounts
+    window.scrollTo(0, 0);
+    
+    const initializeData = async () => {
+      await fetchCurrentUser();
+      await fetchLeaderboard();
+    };
+    initializeData();
+    
+    // Intersection Observer for fade-in animations
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('visible');
+          }
+        });
+      },
+      { threshold: 0.1, rootMargin: '0px 0px -50px 0px' }
+    );
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
   }, []);
 
+  useEffect(() => {
+    // Observe leaderboard items when they load
+    if (!loading && !userLoading && observerRef.current) {
+      const items = document.querySelectorAll('.leaderboard-item');
+      items.forEach((item) => {
+        observerRef.current.observe(item);
+      });
+    }
+  }, [loading, userLoading, leaderboardData]);
+
   const fetchCurrentUser = async () => {
+    setUserLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       setCurrentUser(user);
-      fetchUserRank(user.id);
+      await fetchUserRank(user.id);
     }
+    setUserLoading(false);
   };
 
   const fetchUserRank = async (userId) => {
@@ -105,6 +143,15 @@ export default function GlobalLeaderboard() {
     return pp.toString();
   };
 
+  const getOrdinalSuffix = (num) => {
+    const j = num % 10;
+    const k = num % 100;
+    if (j === 1 && k !== 11) return num + "st";
+    if (j === 2 && k !== 12) return num + "nd";
+    if (j === 3 && k !== 13) return num + "rd";
+    return num + "th";
+  };
+
   const navigateToProfile = (userId) => {
     navigate(`/profile/${userId}`);
   };
@@ -119,35 +166,25 @@ export default function GlobalLeaderboard() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="global-leaderboard">
-        <div className="leaderboard-header">
-          <h2>🏆 Global Leaderboard</h2>
-        </div>
-        <div className="loading-state">
-          <div className="loading-spinner"></div>
-          <p>Loading rankings...</p>
-        </div>
-      </div>
-    );
+  if (loading || userLoading) {
+    return null;
   }
 
   return (
-    <div className="global-leaderboard">
-      <div className="leaderboard-header">
+    <div className="global-leaderboard animate-fade-in">
+      <div className="leaderboard-header animate-slide-down">
   <h2>🏆 Top Performers</h2>
         {/* Controls removed: no time filters or manual refresh by UX decision */}
       </div>
 
       {/* User's Current Rank Card */}
       {currentUser && userRank && (
-        <div className="user-rank-card">
+        <div className="user-rank-card animate-slide-up">
           <div className="rank-info">
             <span className="user-position">#{userRank.rank_position}</span>
             <div className="user-details">
               <span className="rank-label">Your Rank</span>
-              <span className="percentile">Top {userRank.percentile}%</span>
+              <span className="percentile">Top {getOrdinalSuffix(userRank.percentile)} percentile</span>
             </div>
           </div>
           <div className="total-players">
@@ -222,10 +259,7 @@ export default function GlobalLeaderboard() {
 
       {leaderboardData.length > 0 && (
         <div className="leaderboard-footer">
-          <p>Showing top {leaderboardData.length} players</p>
-          <button className="view-more-btn" onClick={() => navigate('/leaderboard')}>
-            View Full Rankings
-          </button>
+          <p>Showing top {leaderboardData.length} {leaderboardData.length === 1 ? 'player' : 'players'}</p>
         </div>
       )}
     </div>

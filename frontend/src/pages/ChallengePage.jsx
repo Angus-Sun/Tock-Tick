@@ -30,10 +30,22 @@ export default function ChallengePage() {
   const recordedVideoRef = useRef(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
+  // Custom control state: challenge video
+  const [challengeTime, setChallengeTime] = useState(0);
+  const [challengeDuration, setChallengeDuration] = useState(0);
+  const [challengePaused, setChallengePaused] = useState(true);
+  const [challengeMuted, setChallengeMuted] = useState(false);
+
+  // Custom control state: recorded preview video
+  const [recordedTime, setRecordedTime] = useState(0);
+  const [recordedDuration, setRecordedDuration] = useState(0);
+  const [recordedPaused, setRecordedPaused] = useState(true);
+  const [recordedMuted, setRecordedMuted] = useState(true);
+
   // Inflate factor for live and final scores (keeps values under 100)
-  // 1.4 => +40% boost for displayed percentages (clamped below 100)
+  // 1.6 => +60% boost for displayed percentages (clamped below 100)
   const SCORE_INFLATION = {
-    factor: 1.4,
+    factor: 1.6,
     max: 99.99,
   };
 
@@ -226,6 +238,69 @@ export default function ChallengePage() {
     }
   }, [recordedBlob]);
 
+  // Bind challenge video events for custom controls
+  useEffect(() => {
+    const v = challengeVideoRef.current;
+    if (!v) return;
+    const onLoadedMeta = () => setChallengeDuration(v.duration || 0);
+    const onTimeUpdate = () => setChallengeTime(v.currentTime || 0);
+    const onPlay = () => setChallengePaused(false);
+    const onPause = () => setChallengePaused(true);
+    const onVol = () => setChallengeMuted(!!v.muted);
+    v.addEventListener('loadedmetadata', onLoadedMeta);
+    v.addEventListener('timeupdate', onTimeUpdate);
+    v.addEventListener('play', onPlay);
+    v.addEventListener('pause', onPause);
+    v.addEventListener('volumechange', onVol);
+    // Initialize current states
+    if (!isNaN(v.duration)) setChallengeDuration(v.duration || 0);
+    setChallengeTime(v.currentTime || 0);
+    setChallengePaused(v.paused);
+    setChallengeMuted(!!v.muted);
+    return () => {
+      v.removeEventListener('loadedmetadata', onLoadedMeta);
+      v.removeEventListener('timeupdate', onTimeUpdate);
+      v.removeEventListener('play', onPlay);
+      v.removeEventListener('pause', onPause);
+      v.removeEventListener('volumechange', onVol);
+    };
+  }, [challenge?.video_url]);
+
+  // Bind recorded preview video events for custom controls
+  useEffect(() => {
+    const v = recordedVideoRef.current;
+    if (!v) return;
+    const onLoadedMeta = () => setRecordedDuration(v.duration || 0);
+    const onTimeUpdate = () => setRecordedTime(v.currentTime || 0);
+    const onPlay = () => setRecordedPaused(false);
+    const onPause = () => setRecordedPaused(true);
+    const onVol = () => setRecordedMuted(!!v.muted);
+    v.addEventListener('loadedmetadata', onLoadedMeta);
+    v.addEventListener('timeupdate', onTimeUpdate);
+    v.addEventListener('play', onPlay);
+    v.addEventListener('pause', onPause);
+    v.addEventListener('volumechange', onVol);
+    // Initialize current states
+    if (!isNaN(v.duration)) setRecordedDuration(v.duration || 0);
+    setRecordedTime(v.currentTime || 0);
+    setRecordedPaused(v.paused);
+    setRecordedMuted(!!v.muted);
+    return () => {
+      v.removeEventListener('loadedmetadata', onLoadedMeta);
+      v.removeEventListener('timeupdate', onTimeUpdate);
+      v.removeEventListener('play', onPlay);
+      v.removeEventListener('pause', onPause);
+      v.removeEventListener('volumechange', onVol);
+    };
+  }, [recordedUrl]);
+
+  const formatTime = (t) => {
+    if (!isFinite(t)) return '0:00';
+    const m = Math.floor(t / 60);
+    const s = Math.floor(t % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
+
   // Start pose engine once camera + challenge reference sequence available
   useEffect(() => {
     if (!poseReady && !isRunning && videoRef.current && challenge?.reference_sequence) {
@@ -386,10 +461,23 @@ export default function ChallengePage() {
           const inflated = Math.min(rawScore * SCORE_INFLATION.factor, SCORE_INFLATION.max);
           const score = Math.round(inflated);
           setFinalScore(score);
-          // compute PP using scoringAPI fallback (difficulty from challenge)
-          const pp = calculateBasicPP(score, challenge?.difficulty || 'BEGINNER');
+          
+          // Compute PP with early completion penalty
+          let pp = calculateBasicPP(score, challenge?.difficulty || 'BEGINNER');
+          
+          // Apply significant penalty if ended early (didn't complete all steps)
+          const totalSteps = challenge?.reference_sequence?.length || currentScores.length;
+          const completionRate = currentScores.length / totalSteps;
+          
+          if (completionRate < 1.0) {
+            // Exponential penalty: 0.5 completion = 25% PP, 0.75 completion = ~56% PP
+            const completionPenalty = Math.pow(completionRate, 2);
+            pp = Math.round(pp * completionPenalty);
+            console.log(`Early completion penalty applied: ${(completionRate * 100).toFixed(1)}% complete -> ${(completionPenalty * 100).toFixed(1)}% PP multiplier`);
+          }
+          
           setFinalPP(pp);
-          console.log("Final calculated score:", score, "(raw:", Math.round(rawScore), ") => PP:", pp, "from", currentScores.length, "steps", currentScores);
+          console.log("Final calculated score:", score, "(raw:", Math.round(rawScore), ") => PP:", pp, "from", currentScores.length, "/", totalSteps, "steps", currentScores);
         } else {
           setFinalScore(0);
           setFinalPP(0);
@@ -493,17 +581,14 @@ export default function ChallengePage() {
       const json = await resp.json();
       if (!resp.ok) {
         console.error('Submit failed', json);
-        alert('Error submitting score: ' + (json.error || 'unknown'));
+        setUploading(false);
       } else {
-        alert(`✅ Mimic uploaded and submitted! PP: ${ppData.totalPP}`);
+        window.location.reload();
       }
     } catch (err) {
       console.error('Submission error:', err);
-      alert('Failed to submit score to server.');
+      setUploading(false);
     }
-
-    setUploading(false);
-    setFinalScore(null); // Reset for next recording
   };
 
   if (!challenge) return <p>Loading...</p>;
@@ -544,8 +629,31 @@ export default function ChallengePage() {
             ref={challengeVideoRef}
             className="pane__video"
             src={challenge.video_url}
-            controls
+            playsInline
           />
+          <div className="video-controls">
+            <button onClick={() => {
+              const v = challengeVideoRef.current; if (!v) return;
+              if (v.paused) v.play(); else v.pause();
+            }}>{challengePaused ? 'Play' : 'Pause'}</button>
+            <input
+              type="range"
+              min={0}
+              max={challengeDuration || 0}
+              step={0.01}
+              value={challengeTime}
+              onChange={(e) => {
+                const v = challengeVideoRef.current; if (!v) return;
+                const val = parseFloat(e.target.value);
+                v.currentTime = val; setChallengeTime(val);
+              }}
+            />
+            <button onClick={() => {
+              const v = challengeVideoRef.current; if (!v) return;
+              v.muted = !v.muted;
+            }}>{challengeMuted ? 'Unmute' : 'Mute'}</button>
+            <div className="video-time">{formatTime(challengeTime)} / {formatTime(challengeDuration)}</div>
+          </div>
         </div>
 
         <div className="pane__right">
@@ -558,9 +666,9 @@ export default function ChallengePage() {
                   key={recordedUrl}
                   ref={recordedVideoRef}
                   src={recordedUrl}
-                  controls
                   autoPlay
                   muted
+                  loop
                   playsInline
                   preload="metadata"
                   className="pane__video"
@@ -570,6 +678,29 @@ export default function ChallengePage() {
                   }}
                   onError={() => setPreviewLoading(false)}
                 />
+                <div className="video-controls">
+                  <button onClick={() => {
+                    const v = recordedVideoRef.current; if (!v) return;
+                    if (v.paused) v.play(); else v.pause();
+                  }}>{recordedPaused ? 'Play' : 'Pause'}</button>
+                  <input
+                    type="range"
+                    min={0}
+                    max={recordedDuration || 0}
+                    step={0.01}
+                    value={recordedTime}
+                    onChange={(e) => {
+                      const v = recordedVideoRef.current; if (!v) return;
+                      const val = parseFloat(e.target.value);
+                      v.currentTime = val; setRecordedTime(val);
+                    }}
+                  />
+                  <button onClick={() => {
+                    const v = recordedVideoRef.current; if (!v) return;
+                    v.muted = !v.muted;
+                  }}>{recordedMuted ? 'Unmute' : 'Mute'}</button>
+                  <div className="video-time">{formatTime(recordedTime)} / {formatTime(recordedDuration)}</div>
+                </div>
                 {previewLoading && (
                   <div style={{ position:'absolute',left:0,top:0,width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.4)',fontSize:'0.9rem',color:'#9dd49d' }}>
                     Preparing preview…
