@@ -42,6 +42,8 @@ export default function usePoseDetection({
 		setCurrentScore(0);
 		perStepBestRef.current = [];
 		setPerStepScores([]);
+		// Start the step timer so autoSkip timing begins from reset
+		try { stepStartRef.current = Date.now(); } catch (e) {}
 	}, []);
 
 	// when referenceSequence changes, reset per-step tracking

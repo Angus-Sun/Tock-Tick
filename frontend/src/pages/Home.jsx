@@ -66,7 +66,7 @@ export default function Home() {
           <Logo className="home-logo" />
         </div>
         <h1 className="home-title">MatchA Dance</h1>
-        <p className="home-sub">Discover community challenges & prove your mimic skills.</p>
+        <p className="home-sub">Discover community challenges & prove your match(a)ing skills.</p>
         <div className="home-actions">
           <Link to="/upload" className="hero-btn accent">Upload</Link>
           <a href="#challenge-feed" className="hero-btn outline" onClick={e => { e.preventDefault(); document.getElementById('challenge-feed')?.scrollIntoView({behavior:'smooth'}); }}>Explore</a>

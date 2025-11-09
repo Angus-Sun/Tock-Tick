@@ -54,7 +54,7 @@ export async function processVideoFile(file, { sampleFps = 15, smoothWindow = 5,
   // if not enough frames, fallback
   if (!frames.length) return { referenceSequence: [], stepTimes: [], suggestedAutoSkip: 0 };
 
-  // If the caller requested fixed-interval sampling (e.g. every 0.25s), choose frames nearest to those times
+  // If the caller requested fixed-interval sampling (e.g. every 0.1s), choose frames nearest to those times
   if (fixedIntervalSeconds && fixedIntervalSeconds > 0) {
     // Prefer the video's declared duration when available; fallback to last sampled time
     const duration = (video.duration && !isNaN(video.duration) && video.duration > 0) ? video.duration : (frames[frames.length - 1].time || 0);

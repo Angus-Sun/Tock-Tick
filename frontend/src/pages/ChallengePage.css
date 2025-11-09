@@ -79,10 +79,60 @@
   max-width: 280px; /* Limit width to maintain portrait shape */
   margin: 0 auto; /* Center the video */
   display: block;
+    /* Mirror video content */
+    transform: scaleX(-1);
+}
+
+/* Custom video controls (unmirrored) */
+.video-controls {
+  max-width: 280px;
+  margin: 8px auto 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.7rem;
+  background: #141414;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid #232323;
+}
+
+.video-controls button {
+  background: #2f612f;
+  border: none;
+  color: #d9f6d9;
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.video-controls button:hover {
+  background: #3b7a3b;
+}
+
+.video-controls input[type=range] {
+  flex: 1;
+  accent-color: #3b7a3b;
+  cursor: pointer;
+}
+
+.video-time {
+  min-width: 50px;
+  text-align: right;
+  color: #8b938b;
+}
+
+  /* Mirror pose overlay canvas */
+  .video-container canvas {
+  transform: scaleX(-1);
 }
 
 .pane__video:hover {
-  transform: scale(1.01);
+  transform: scaleX(-1) scale(1.01);
 }
 
 .input {
