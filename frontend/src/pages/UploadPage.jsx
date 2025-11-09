@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../utils/supabaseClient.js";
 import { v4 as uuidv4 } from "uuid";
 import { FaVideo } from "react-icons/fa"; // Video icon from React Icons
-import processVideoFile from "../utils/videotoReference.js";
+import processVideoFile from "../utils/videoToReference.js";
 import "./UploadPage.css";
 
 export default function UploadPage() {
