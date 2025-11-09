@@ -120,52 +120,48 @@ export default function usePoseDetection({
 					const targetIndex = Math.min(stepRef.current, referenceSequence.length - 1);
 					const target = referenceSequence[targetIndex];
 
-					// Angle-based per-joint similarity (preferred)
+					// Angle-based per-joint similarity - CAMERA ANGLE & DISTANCE INDEPENDENT!
 							let sim = 0;
 							try {
-								const sims = perJointAngleSimilarity(landmarks, target, { angleTolerance: 25, distTolerance: 0.6, visibilityThreshold: 0.25 });
+								const sims = perJointAngleSimilarity(landmarks, target, { angleTolerance: 30, distTolerance: 0.8, visibilityThreshold: 0.2 });
 								// expose last per-joint sims for debugging/UI
 								try { setLastPerJointSims(sims); } catch (e) { }
-								// Weigh joints: give more importance to shoulders (arms) while still using hips/knees
-								// Includes an explicit shoulder-spread term to capture arms-out vs arms-down differences
-								// Rebalanced weights: emphasize arms (shoulder/elbow/wrist) and legs (knee/ankle),
-								// de-emphasize hips/torso/head so standing still doesn't score highly.
+								// Balanced weighting - all major joints matter equally
 								const weightMap = {
-									// legs
-									25: 0.10, // left_knee
-									26: 0.10, // right_knee
-									27: 0.06, // left_ankle
-									28: 0.06, // right_ankle
-									// hips (lower weight)
-									23: 0.06, // left_hip
-									24: 0.06, // right_hip
-									// arms (higher weight)
-									11: 0.14, // left_shoulder
-									12: 0.14, // right_shoulder
-									13: 0.12, // left_elbow
-									14: 0.12, // right_elbow
-									15: 0.12, // left_wrist
-									16: 0.12, // right_wrist
+									// legs - important for dance
+									25: 0.12, // left_knee
+									26: 0.12, // right_knee
+									27: 0.08, // left_ankle
+									28: 0.08, // right_ankle
+									// hips - body positioning
+									23: 0.10, // left_hip
+									24: 0.10, // right_hip
+									// arms - expressive movement
+									11: 0.12, // left_shoulder
+									12: 0.12, // right_shoulder
+									13: 0.11, // left_elbow
+									14: 0.11, // right_elbow
+									15: 0.09, // left_wrist
+									16: 0.09, // right_wrist
 								};
-								const shoulderSpreadWeight = 0.15; // extra term (0..1 weight) for shoulder width similarity
+								const shoulderSpreadWeight = 0.06; // reduced from 0.15 - less strict on exact arm width
 								let sum = 0;
 								let wsum = 0;
 								for (const idxStr of Object.keys(weightMap)) {
 									const idx = Number(idxStr);
 									const w = weightMap[idx];
-									// fallback to conservative 0.1 when sim missing
-									const s = (sims && sims[idx] != null) ? sims[idx] : 0.1;
+									// fallback to neutral 0.5 when sim missing (was 0.1 - too harsh)
+									const s = (sims && sims[idx] != null) ? sims[idx] : 0.5;
 									sum += s * w;
 									wsum += w;
 								}
-								// shoulder spread similarity (distance between left and right shoulder after normalization)
-								const shoulderSpreadSim = shoulderSpreadSimilarity(landmarks, target, 0.6);
+								// shoulder spread similarity - very tolerant since camera angle affects this
+								const shoulderSpreadSim = shoulderSpreadSimilarity(landmarks, target, 1.0); // increased tolerance
 								sum += shoulderSpreadSim * shoulderSpreadWeight;
 								wsum += shoulderSpreadWeight;
 								sim = wsum ? sum / wsum : 0;
 
-								// Motion penalty: if the reference is moving between consecutive steps but the
-								// user is not moving, reduce similarity so standing still doesn't score highly.
+								// Motion penalty: detect if user is sitting still vs actually dancing
 								try {
 									const prevTarget = referenceSequence && referenceSequence[Math.max(0, stepRef.current - 1)];
 									let refMotion = 0;
@@ -195,14 +191,29 @@ export default function usePoseDetection({
 									userMotion = c2 ? s2 / c2 : 0;
 								}
 
-								// Strong penalty if reference is moving but user is not
-								if (refMotion > 0.02 && userMotion < Math.max(0.004, refMotion * 0.4)) {
-									sim *= 0.35;
-								}
-								
-								// Additional penalty: if user is completely still (very low motion), score should be near zero
-								if (userMotion < 0.003) {
-									sim *= 0.1; // Reduce to 10% if barely moving
+								// Aggressive stillness detection: if user is barely moving, heavily penalize
+								// UNLESS they match the pose very well (>0.7)
+								if (userMotion < 0.002) {
+									// User is essentially frozen
+									if (sim < 0.7) {
+										// Frozen in wrong pose = very bad
+										sim *= 0.05; // 95% penalty
+									} else {
+										// Frozen but in correct pose = still penalize but less harshly
+										sim *= 0.5; // 50% penalty
+									}
+								} else if (userMotion < 0.005) {
+									// User is moving very little
+									if (sim < 0.6) {
+										// Low motion + wrong pose = bad
+										sim *= 0.2; // 80% penalty
+									} else if (refMotion > 0.02) {
+										// Reference is moving but user isn't keeping up
+										sim *= 0.6; // 40% penalty
+									}
+								} else if (refMotion > 0.03 && userMotion < refMotion * 0.3) {
+									// Reference is moving significantly but user is too slow
+									sim *= 0.4; // 60% penalty
 								}
 								} catch (e) {}
 

@@ -153,26 +153,7 @@ app.post('/api/submit-score', async (req, res) => {
       });
     }
 
-    // Insert score record with extended data
-    // Insert into scores table - only include columns present in the current schema
-    const { data: scoreRecord, error: scoreError } = await supabase
-      .from('scores')
-      .insert([{
-        challenge_id: challengeId,
-        player: playerName,
-        player_id: userId,
-        // 'score' column holds the percentage accuracy (per schema)
-        score: scoreData.finalScore,
-        mimic_url: mimicUrl
-      }])
-      .select()
-      .single();
-
-    if (scoreError) {
-      throw scoreError;
-    }
-
-    // Ensure we have an authoritative PP value on the server.
+    // Ensure we have an authoritative PP value on the server BEFORE inserting score.
     // If client didn't send PP or sent 0, compute PP here.
     let effectivePP = (ppData && typeof ppData.totalPP === 'number') ? ppData.totalPP : null;
     if (effectivePP == null || effectivePP === 0) {
@@ -217,6 +198,28 @@ app.post('/api/submit-score', async (req, res) => {
         effectivePP = 0;
       }
     }
+
+    // Insert score record with PP included
+    console.log('Inserting score with PP:', effectivePP);
+    const { data: scoreRecord, error: scoreError } = await supabase
+      .from('scores')
+      .insert([{
+        challenge_id: challengeId,
+        player: playerName,
+        player_id: userId,
+        score: scoreData.finalScore,
+        mimic_url: mimicUrl,
+        pp_earned: effectivePP || 0
+      }])
+      .select()
+      .single();
+
+    if (scoreError) {
+      console.error('Error inserting score:', scoreError);
+      throw scoreError;
+    }
+    
+    console.log('Score inserted successfully with pp_earned:', scoreRecord.pp_earned);
 
     // Record PP history (use effectivePP)
     if (typeof effectivePP === 'number' && effectivePP > 0) {
