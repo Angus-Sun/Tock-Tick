@@ -4,6 +4,7 @@ import { supabase } from "../utils/supabaseClient.js";
 import { v4 as uuidv4 } from "uuid";
 import Leaderboard from "../components/Leaderboard.jsx";
 import usePoseDetection from "../hooks/usePoseDetection.js";
+import { calculateBasicPP } from "../utils/scoringAPI.js";
 import "./ChallengePage.css";
 
 export default function ChallengePage() {
@@ -15,7 +16,8 @@ export default function ChallengePage() {
   const [recordedBlob, setRecordedBlob] = useState(null);
   const [recordedUrl, setRecordedUrl] = useState(null);
   const [countdown, setCountdown] = useState(null);
-  const [finalScore, setFinalScore] = useState(null);
+  const [finalScore, setFinalScore] = useState(null); // percent (kept for backwards compatibility)
+  const [finalPP, setFinalPP] = useState(null); // performance points
   const [poseReady, setPoseReady] = useState(false);
   const [poseInitializing, setPoseInitializing] = useState(true);
 
@@ -28,8 +30,15 @@ export default function ChallengePage() {
   const recordedVideoRef = useRef(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
+  // Inflate factor for live and final scores (keeps values under 100)
+  // 1.4 => +40% boost for displayed percentages (clamped below 100)
+  const SCORE_INFLATION = {
+    factor: 1.4,
+    max: 99.99,
+  };
+
   // Pose detection hook  - reference sequence will be set from challenge.reference_sequence
-  const { currentScore, perStepScores, isRunning, start: startPose, stop: stopPose, reset: resetPose } = usePoseDetection({
+  const { currentScore, perStepScores, isRunning, start: startPose, stop: stopPose, reset: resetPose, goToStep } = usePoseDetection({
     videoRef,
     referenceSequence: challenge?.reference_sequence || [],
     threshold: 0.75,
@@ -57,8 +66,9 @@ export default function ChallengePage() {
     const canvas = canvasRef.current;
     const video = videoRef.current;
     const ctx = canvas.getContext('2d');
-    let animationId;
-    let currentStepIndex = 0;
+  let animationId;
+  let currentStepIndex = 0;
+  const lastSyncedStepRef = { current: -1 };
 
     const drawSkeleton = (landmarks, color, lineWidth = 3, dotSize = 5) => {
       if (!landmarks || !Array.isArray(landmarks) || landmarks.length === 0) return;
@@ -129,9 +139,22 @@ export default function ChallengePage() {
           }
           
           currentStepIndex = closestIndex;
+          // sync hook step with challenge video time (only when it changes)
+          try {
+            if (lastSyncedStepRef.current !== currentStepIndex) {
+              goToStep(currentStepIndex);
+              lastSyncedStepRef.current = currentStepIndex;
+            }
+          } catch (e) {}
         } else {
           // Fallback: use perStepScores length (manual progression)
           currentStepIndex = Math.min(perStepScores.length, referenceSequence.length - 1);
+          try {
+            if (lastSyncedStepRef.current !== currentStepIndex) {
+              goToStep(currentStepIndex);
+              lastSyncedStepRef.current = currentStepIndex;
+            }
+          } catch (e) {}
         }
         
         const referencePose = referenceSequence[currentStepIndex];
@@ -180,7 +203,7 @@ export default function ChallengePage() {
     return () => {
       if (animationId) cancelAnimationFrame(animationId);
     };
-  }, [isRunning, challenge, perStepScores]);
+  }, [isRunning, challenge, perStepScores, goToStep]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -358,11 +381,18 @@ export default function ChallengePage() {
         
         if (currentScores && currentScores.length > 0) {
           const avg = currentScores.reduce((a, b) => a + (b || 0), 0) / currentScores.length;
-          const score = Math.round(avg * 100);
+          const rawScore = avg * 100;
+          // inflate and clamp below 100
+          const inflated = Math.min(rawScore * SCORE_INFLATION.factor, SCORE_INFLATION.max);
+          const score = Math.round(inflated);
           setFinalScore(score);
-          console.log("Final calculated score:", score, "from", currentScores.length, "steps", currentScores);
+          // compute PP using scoringAPI fallback (difficulty from challenge)
+          const pp = calculateBasicPP(score, challenge?.difficulty || 'BEGINNER');
+          setFinalPP(pp);
+          console.log("Final calculated score:", score, "(raw:", Math.round(rawScore), ") => PP:", pp, "from", currentScores.length, "steps", currentScores);
         } else {
           setFinalScore(0);
+          setFinalPP(0);
           console.warn("No pose scores recorded - scoresRef was empty");
         }
       }, 500);
@@ -414,9 +444,9 @@ export default function ChallengePage() {
       .from("videos")
       .getPublicUrl(data.path);
 
-    // save score row - use calculated score from pose detection
-    const scoreToSave = finalScore !== null ? finalScore : 0;
-    console.log("Saving score to database:", scoreToSave);
+  // save score row - use calculated PP from pose detection
+  const scoreToSave = finalPP !== null ? finalPP : 0;
+  console.log("Saving PP to database:", scoreToSave);
     
     const { error: dbError } = await supabase.from("scores").insert([
       {
@@ -428,14 +458,36 @@ export default function ChallengePage() {
       },
     ]);
 
-    if (dbError) alert("Error saving score: " + dbError.message);
-    else alert(`✅ Mimic uploaded successfully! Score: ${scoreToSave}%`);
+  if (dbError) alert("Error saving score: " + dbError.message);
+  else alert(`✅ Mimic uploaded successfully! PP: ${scoreToSave}`);
 
     setUploading(false);
     setFinalScore(null); // Reset for next recording
   };
 
   if (!challenge) return <p>Loading...</p>;
+
+  const getScoreGrade = (score) => {
+    if (score >= 95) return { grade: 'S+', color: '#FFD700' };
+    if (score >= 90) return { grade: 'S', color: '#E6E6FA' };
+    if (score >= 85) return { grade: 'A+', color: '#FF6B47' };
+    if (score >= 80) return { grade: 'A', color: '#4ECDC4' };
+    if (score >= 75) return { grade: 'B+', color: '#45B7D1' };
+    if (score >= 70) return { grade: 'B', color: '#96CEB4' };
+    if (score >= 60) return { grade: 'C', color: '#FECA57' };
+    return { grade: 'D', color: '#FF6B6B' };
+  };
+
+  const computeConsistency = (scores) => {
+    if (!scores || scores.length === 0) return 0;
+    const valid = scores.filter(s => s != null && !isNaN(s));
+    if (valid.length === 0) return 0;
+    const mean = valid.reduce((a,b)=>a+b,0)/valid.length;
+    const variance = valid.reduce((a,b)=>a+Math.pow(b-mean,2),0)/valid.length;
+    const sd = Math.sqrt(variance);
+    const consistency = Math.max(0, 1 - (sd / 0.5));
+    return Math.round(consistency * 100);
+  };
 
   return (
     <div className="challenge">
@@ -538,12 +590,48 @@ export default function ChallengePage() {
           {!recording ? (
             recordedUrl ? (
               <>
-                {finalScore !== null && (
-                  <div style={{ padding: '12px', background: 'rgba(59, 122, 59, 0.15)', borderRadius: '10px', color: '#d9f6d9', marginBottom: '12px', textAlign: 'center' }}>
-                    <div style={{ fontSize: '0.9rem' }}>Your Score</div>
-                    <div style={{ fontSize: '2rem', fontWeight: '800' }}>{finalScore}%</div>
-                  </div>
-                )}
+                {finalPP !== null && (
+                      (() => {
+                        const grade = getScoreGrade(finalScore || 0);
+                        const currentScores = scoresRef.current || [];
+                        const avgStepScore = currentScores && currentScores.length > 0 ? Math.round((currentScores.reduce((a,b)=>a+(b||0),0)/currentScores.length)*100) : 0;
+                        const consistency = computeConsistency(currentScores);
+                        const stepsCompleted = currentScores ? currentScores.length : 0;
+                        return (
+                          <div style={{ padding: '12px', background: 'rgba(59, 122, 59, 0.08)', borderRadius: '10px', color: '#d9f6d9', marginBottom: '12px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <div>
+                                <div style={{ fontSize: '0.9rem', color: '#cfead1' }}>Final Grade</div>
+                                <div style={{ fontSize: '2rem', fontWeight: '800', color: grade.color }}>{grade.grade}</div>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: '0.9rem', color: '#cfead1' }}>Accuracy</div>
+                                <div style={{ fontSize: '1.6rem', fontWeight: '700' }}>{finalScore}%</div>
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: '0.9rem', color: '#cfead1' }}>PP Earned</div>
+                                <div style={{ fontSize: '1.6rem', fontWeight: '700' }}>{finalPP} PP</div>
+                              </div>
+                            </div>
+
+                            <div style={{ marginTop: '10px', display: 'flex', gap: '12px', justifyContent: 'space-between' }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: '0.8rem', color: '#9dd49d' }}>Steps completed</div>
+                                <div style={{ fontSize: '1rem' }}>{stepsCompleted} / {challenge?.reference_sequence?.length || 0}</div>
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: '0.8rem', color: '#9dd49d' }}>Avg step score</div>
+                                <div style={{ fontSize: '1rem' }}>{avgStepScore}%</div>
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: '0.8rem', color: '#9dd49d' }}>Consistency</div>
+                                <div style={{ fontSize: '1rem' }}>{consistency}%</div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()
+                    )}
                 <button className="btn" disabled={uploading} onClick={handleUploadMimic}>
                   {uploading ? 'Uploading...' : '⬆️ Upload Mimic'}
                 </button>
@@ -568,7 +656,7 @@ export default function ChallengePage() {
               {isRunning && (
                 <div style={{ marginTop: '12px', padding: '12px', background: 'rgba(59, 122, 59, 0.15)', borderRadius: '10px', border: '2px solid rgba(59, 122, 59, 0.3)' }}>
                   <div style={{ fontSize: '1.2rem', fontWeight: '700', color: '#9dd49d', marginBottom: '6px' }}>
-                    Live Score: {currentScore.toFixed(1)}%
+                    Live Accuracy: {Math.min(currentScore * SCORE_INFLATION.factor, SCORE_INFLATION.max).toFixed(1)}%
                   </div>
                   <div style={{ fontSize: '0.85rem', color: '#d9f6d9' }}>
                     Steps completed: {perStepScores.length}
@@ -584,7 +672,7 @@ export default function ChallengePage() {
                     overflow: 'hidden'
                   }}>
                     <div style={{
-                      width: `${currentScore}%`,
+                      width: `${Math.min(currentScore * SCORE_INFLATION.factor, SCORE_INFLATION.max)}%`,
                       height: '100%',
                       background: 'linear-gradient(90deg, #3b7a3b, #4ade80)',
                       transition: 'width 0.3s ease'
